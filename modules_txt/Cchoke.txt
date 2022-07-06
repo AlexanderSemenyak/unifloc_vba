@@ -1,7 +1,7 @@
 '=======================================================================================
-'Unifloc 7.35 new year                                     khabibullinra@gmail.com
+'Unifloc 7.38 aspo                                    khabibullinra@gmail.com
 'Petroleum engineering calculations modules (macroses)
-'2000 - 2021
+'2000 - 2022
 '
 '=======================================================================================
 '
@@ -22,6 +22,7 @@ Public d_choke_m As Double
 Public p_in_atma As Double
 Public p_out_atma As Double
 Public t_choke_C As Double
+Public p_crit_atma As Double
 ' флюид протекающий через штуцер
 Public fluid As New CPVT
 Public calibr_fr As Double
@@ -33,7 +34,7 @@ Private t_choke_throat_C_ As Double ' температура в штуцере
 Private t_choke_av_C_
 Public sonic_vel_msec As Double
 ' параметры модели штуцера
-Private K As Double '  = 0.826,'K - Discharge coefficient (optional, default  is 0.826)
+Public K As Double '  = 0.826,'K - Discharge coefficient (optional, default  is 0.826)
 Private f As Double ' = 1.25,'F - Ratio of gas spec. heat capacity at constant pressure to that at constant volume (optional, default  is 1.4)
 Private c_vw As Double ' = 4176'Cvw - water specific heat capacity (J/kg K)(optional, default  is 4176)
 Private a_u As Double 'upstream area
@@ -327,7 +328,7 @@ Public Function calc_choke_rp_max_m3m3(ByVal p_sn As Double, _
     Dim Max_Rp As Double
     Dim i As Integer
     Dim a As Double ' нижн€€ граница отрезка, в которой находитс€ значение максимального газового фактора
-    Dim b As Double ' вверхн€€ граница отрезка, в которой находитс€ значение максимального газового фактора
+    Dim B As Double ' вверхн€€ граница отрезка, в которой находитс€ значение максимального газового фактора
     Dim p_d As Double
     Dim eps As Double
     eps = p_sn * 0.001
@@ -360,19 +361,19 @@ Public Function calc_choke_rp_max_m3m3(ByVal p_sn As Double, _
             i = 1
             Do
                 i = 2 * i
-                b = fluid.rp_m3m3 * i
+                B = fluid.rp_m3m3 * i
                 p_d = calc_choke_p(set_PT(p_sn, t_u), calc_p_down).p_atma
             Loop Until p_d < 0
             a = i * fluid.rp_m3m3 / 2
             
             Do
                 counter = counter + 1
-                Max_Rp = (a + b) / 2
+                Max_Rp = (a + B) / 2
                 p_d = calc_choke_p(set_PT(p_sn, t_u), calc_p_down).p_atma
                 If p_d > 0 Then
                     a = Max_Rp
                 Else
-                    b = Max_Rp
+                    B = Max_Rp
                 End If
             Loop Until Abs(p_d) < eps Or counter > max_iters
         End If
@@ -515,7 +516,7 @@ Public Function calc_choke_q_liq_sm3day(ByVal p_u As Double, ByVal p_d As Double
     Dim p_ri As Double
  '   Dim v_si As Double
     Dim p_dcr As Double
-    Dim p_c As Double
+   ' Dim p_c As Double
     Dim p_ra As Double
     Dim w As Double
     Const p_r_inc As Double = 0.001
@@ -574,7 +575,7 @@ On Error GoTo err1:
         p_dcr = p_u * (p_ri * (1 - (d_choke_m / d_down_m) ^ 1.85) + (d_choke_m / d_down_m) ^ 1.85)
         'Compare trial pressure ratio with critical and assign actual pressure ratio
         'Auxilary properties
-        p_c = p_ri * p_u
+        p_crit_atma = p_ri * p_u
         p_ra = MaxReal(p_ri, p_co / p_u)
         w_i = wi_calc(p_ra, p_u, t_u, wi_der1)
         'Calculate isentropic mass flow rate
@@ -1146,7 +1147,7 @@ Public Function get_result_array(Optional ByVal num_value As Integer = 1, _
 ' подготовка массива дл€ вывода в Excel
 ' выводитс€ минимальный набор параметров, с которым можно работать
 ' num_value - номер значени€ выводимого в первой €чейке
-Const nv = 9  ' output array dimension (number of columns)
+Const nv = 10  ' output array dimension (number of columns)
     Dim res(0 To 1, 0 To nv) As Variant
     Dim i As Integer
     
@@ -1159,7 +1160,8 @@ Const nv = 9  ' output array dimension (number of columns)
         res(0, 6) = calibr_fr:                    res(1, 6) = "calibr_fr"
         res(0, 7) = Round(sonic_vel_msec, 3):       res(1, 7) = "sonic_vel_msec"
         res(0, 8) = Round(q_liq_max_sm3day, 3):     res(1, 8) = "q_liq_max_sm3day"
-        res(0, 9) = log_.get_str_safe(show_log):     res(1, 9) = "log"
+        res(0, 9) = Round(p_crit_atma, 3):     res(1, 9) = "p_crit_atma"
+        res(0, 10) = log_.get_str_safe(show_log):     res(1, 10) = "log"
         res(0, 0) = res(0, num_value):         res(1, 0) = res(1, num_value)
         
         get_result_array = res

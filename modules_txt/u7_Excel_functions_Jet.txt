@@ -1,0 +1,100 @@
+Option Explicit
+'=======================================================================================
+'Unifloc 7.38 aspo                                    khabibullinra@gmail.com
+'Petroleum engineering calculations modules (macroses)
+'2000 - 2022
+'
+'=======================================================================================
+' Jet Pump sandbox
+'description_to_manual      - для автогенерации
+' оценка расхода жидкости через сопло
+' от перепада давления
+Public Function Jet_q_nozzle_sm3day(feed_act As String, _
+                                    d_nozzle_mm As Double, _
+                                    p_act_atma As Double, _
+                                    p_in_atma As Double, _
+                           Optional t_C As Double = 30, _
+                           Optional param As String = "")
+' feed_act  - поток рабочий (высокого давления), строка
+'             расход игнорируется - будет расчтан
+' d_nozzle_mm - диаметр сопла, мм
+' p_act_atma  - давление активного потока, высокое, атм
+' p_in_atma   - давление входного потока, низкое, атм
+' t_C         - температура потоков в струйном насосе, С.
+' param       - дополнительные параметры расчета
+' результат   - число - массовый расход нефти
+'description_end
+    Dim fa As New CPVT
+    Dim jet As New CJetPump
+    Dim q As Double
+    
+    Call fa.init_feed(feed_act)
+    jet.d_nozzle_mm = d_nozzle_mm
+    Set jet.fluid_act = fa
+    
+    Jet_q_nozzle_sm3day = jet.q_act_v1_m3day(p_act_atma, p_in_atma, _
+                                             t_act_C:=t_C)
+End Function
+'description_to_manual      - для автогенерации
+'Расчет давления на выкиде струйного насоса
+Public Function Jet_p_out_atma(feed_act As String, _
+                               feed_in As String, _
+                               d_nozzle_mm As Double, _
+                               d_throat_mm As Double, _
+                               p_act_atma As Double, _
+                               p_in_atma As Double, _
+                      Optional t_C As Double = 30, _
+                      Optional param As String = "", _
+                      Optional type_q As Integer = 0)
+' feed_act  - поток рабочий (высокого давления), строка
+'             расход игнорируется - будет расчтан
+' feed_in   - поток перекачиваемый (низкого давления), строка
+' d_nozzle_mm - диаметр сопла, мм
+' d_throat_mm - диаметр камеры смешения, мм
+' p_act_atma  - давление активного потока, высокое, атм
+' p_in_atma   - давление входного потока, низкое, атм
+' t_C         - температура потоков в струйном насосе, С.
+' param       - дополнительные параметры расчета
+' результат   - число - массовый расход нефти
+'description_end
+    Dim fa As New CPVT
+    Dim fi As New CPVT
+    Dim jet As New CJetPump
+    
+    Dim q As Double
+    
+    Call fa.init_feed(feed_act)
+    Call fi.init_feed(feed_in)
+    
+    jet.d_nozzle_mm = d_nozzle_mm
+    jet.d_throat_mm = d_throat_mm
+    jet.type_q = type_q
+    Set jet.fluid_act = fa
+    Set jet.fluid_in = fi
+    
+    q = fi.q_liq_sm3day
+    
+    Call jet.calc_dp_out_atma(q, p_act_atma, p_in_atma, t_C)
+    
+    Jet_p_out_atma = Array(jet.p_out_atma, jet.fluid_out.feed)
+End Function
+Public Function Jet_test(q, dn, dt, pa, pi)
+    Dim fa As New CPVT
+    Dim fi As New CPVT
+    Dim po
+    
+    fa.fw_fr = 1
+    fi.fw_fr = 1
+    
+    Dim jet As New CJetPump
+    jet.d_nozzle_mm = dn
+    jet.d_throat_mm = dt
+    Set jet.fluid_act = fa
+    Set jet.fluid_in = fi
+    
+    Call jet.calc_dp_out_atma(q, pa, pi, 30)
+    po = jet.p_out_atma
+    
+    Jet_test = po
+End Function
+
