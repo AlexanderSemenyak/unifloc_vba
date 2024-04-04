@@ -4,49 +4,48 @@
  Параметров найдено и записано = 15 
   
  Отчет по функции MF_choke_calibr 
- Количество параметров в функции = 9 
- Строка параметров:feed, d_choke_mm, p_in_atma, p_out_atma, calibr_type, d_pipe_mm, t_choke_C, param, CDischarge 
- Параметров найдено и записано = 8 
- Ошибка! Не найдены параметры! Количество: 1 
- Список параметров: calibr_type   
+ Количество параметров в функции = 11 
+ Строка параметров:choke_json, feed_json, calibr_type, p_in_atma, p_out_atma, t_choke_C, param, q_liq_sm3day, fw_perc, rp_m3m3, q_gas_free_sm3day 
+ Параметров найдено и записано = 11 
   
  Отчет по функции MF_pipe_p_atma 
- Количество параметров в функции = 14 
- Строка параметров:p_calc_from_atma, t_calc_from_C, construction, feed, t_model, calc_along_coord, flow_along_coord, flow_correlation, calibr_grav, calibr_fric, param, h_start_m, h_end_m, znlf 
- Параметров найдено и записано = 13 
- Ошибка! Не найдены параметры! Количество: 1 
- Список параметров: flow_correlation   
+ Количество параметров в функции = 10 
+ Строка параметров:p_calc_from_atma, t_calc_from_C, pipe_object, feed, calc_along_coord, param, q_liq_sm3day, fw_perc, rp_m3m3, q_gas_free_sm3day 
+ Параметров найдено и записано = 10 
   
  Отчет по функции MF_choke_q_sm3day 
- Количество параметров в функции = 9 
- Строка параметров:feed, d_choke_mm, p_in_atma, p_out_atma, t_choke_C, d_pipe_mm, calibr, param, CDischarge 
- Параметров найдено и записано = 8 
- Ошибка! Не найдены параметры! Количество: 1 
- Список параметров: calibr   
+ Количество параметров в функции = 10 
+ Строка параметров:choke_json, feed_json, p_in_atma, p_out_atma, t_choke_C, param, q_liq_sm3day, fw_perc, rp_m3m3, q_gas_free_sm3day 
+ Параметров найдено и записано = 10 
   
  Отчет по функции MF_choke_p_atma 
- Количество параметров в функции = 9 
- Строка параметров:d_choke_mm, feed, p_calc_from_atma, t_choke_C, d_pipe_mm, calc_along_flow, calibr, param, CDischarge 
- Параметров найдено и записано = 8 
- Ошибка! Не найдены параметры! Количество: 1 
- Список параметров: calibr   
+ Количество параметров в функции = 10 
+ Строка параметров:choke_json, feed_json, p_calc_from_atma, t_choke_C, calc_along_flow, param, q_liq_sm3day, fw_perc, rp_m3m3, q_gas_free_sm3day 
+ Параметров найдено и записано = 10 
   
  Отчет по функции MF_choke_calibr_fast 
- Количество параметров в функции = 8 
- Строка параметров:feed, d_choke_mm, p_in_atma, p_out_atma, d_pipe_mm, t_choke_C, param, CDischarge 
- Параметров найдено и записано = 8 
+ Количество параметров в функции = 10 
+ Строка параметров:choke_json, feed_json, p_in_atma, p_out_atma, t_choke_C, param, q_liq_sm3day, fw_perc, rp_m3m3, q_gas_free_sm3day 
+ Параметров найдено и записано = 10 
   
- Отчет по функции MF_choke_pq_crv 
- Количество параметров в функции = 9 
- Строка параметров:d_choke_mm, feed, p_calc_from_atma, t_choke_C, d_pipe_mm, calc_along_flow, calibr, param, CDischarge 
- Параметров найдено и записано = 8 
+ Отчет по функции json_choke_pq_crv 
+ Количество параметров в функции = 13 
+ Строка параметров:d_choke_mm, feed, p_calc_from_atma, t_choke_C, d_pipe_mm, calc_along_flow, calibr, param, CDischarge, q_liq_sm3day, fw_perc, rp_m3m3, q_gas_free_sm3day 
+ Параметров найдено и записано = 12 
  Ошибка! Не найдены параметры! Количество: 1 
  Список параметров: calibr   
+  
+ Отчет по функции encode_PVT 
+ Количество параметров в функции = 9 
+ Строка параметров:gamma_gas, gamma_oil, gamma_wat, rsb_m3m3, pb_atma, t_res_C, bob_m3m3, muob_cP, PVT_corr_set 
+ Параметров найдено и записано = 9 
   
  Отчет по функции PVT_calc 
  Количество параметров в функции = 4 
- Строка параметров:p_atma, t_C, PVT_prop, param 
- Параметров найдено и записано = 4 
+ Строка параметров:p_atma, t_C, PVT_prop, show_log 
+ Параметров найдено и записано = 3 
+ Ошибка! Не найдены параметры! Количество: 1 
+ Список параметров: show_log   
   
  Отчет по функции PVT_bg_m3m3 
  Количество параметров в функции = 3 
@@ -128,9 +127,9 @@
  Строка параметров:p_atma, t_C, PVT_prop 
  Параметров найдено и записано = 3 
   
- Отчет по функции PVT_ST_liqgas_Nm 
+ Отчет по функции feed_ST_liqgas_Nm 
  Количество параметров в функции = 3 
- Строка параметров:p_atma, t_C, PVT_prop 
+ Строка параметров:p_atma, t_C, feed 
  Параметров найдено и записано = 3 
   
  Отчет по функции PVT_cp_oil_JkgC 
@@ -139,9 +138,9 @@
  Параметров найдено и записано = 3 
   
  Отчет по функции PVT_cp_gas_JkgC 
- Количество параметров в функции = 3 
- Строка параметров:p_atma, t_C, PVT_prop 
- Параметров найдено и записано = 3 
+ Количество параметров в функции = 12 
+ Строка параметров:p_atma, t_C, PVT_prop, gamma_gas, gamma_oil, gamma_wat, rsb_m3m3, pb_atma, t_res_C, bob_m3m3, muob_cP, PVT_corr_set 
+ Параметров найдено и записано = 12 
   
  Отчет по функции PVT_cv_gas_JkgC 
  Количество параметров в функции = 3 
@@ -168,9 +167,14 @@
  Строка параметров:p_atma, t_C, PVT_prop 
  Параметров найдено и записано = 3 
   
+ Отчет по функции encode_feed 
+ Количество параметров в функции = 5 
+ Строка параметров:q_liq_sm3day, fw_perc, rp_m3m3, q_gas_free_sm3day, fluid 
+ Параметров найдено и записано = 5 
+  
  Отчет по функции feed_calc 
  Количество параметров в функции = 4 
- Строка параметров:p_atma, t_C, feed, param 
+ Строка параметров:p_atma, t_C, feed, show_log 
  Параметров найдено и записано = 4 
   
  Отчет по функции feed_gas_fraction_d 
@@ -200,6 +204,16 @@
  Строка параметров:p_atma, t_C, feed 
  Параметров найдено и записано = 3 
   
+ Отчет по функции feed_q_liq_rc_m3day 
+ Количество параметров в функции = 3 
+ Строка параметров:p_atma, t_C, feed 
+ Параметров найдено и записано = 3 
+  
+ Отчет по функции feed_q_gas_rc_m3day 
+ Количество параметров в функции = 3 
+ Строка параметров:p_atma, t_C, feed 
+ Параметров найдено и записано = 3 
+  
  Отчет по функции feed_q_gas_free_sm3day 
  Количество параметров в функции = 3 
  Строка параметров:p_atma, t_C, feed 
@@ -210,20 +224,30 @@
  Строка параметров:p_atma, t_C, feed 
  Параметров найдено и записано = 3 
   
+ Отчет по функции feed_rho_liq_kgm3 
+ Количество параметров в функции = 3 
+ Строка параметров:p_atma, t_C, feed 
+ Параметров найдено и записано = 3 
+  
  Отчет по функции feed_mu_mix_cP 
+ Количество параметров в функции = 3 
+ Строка параметров:p_atma, t_C, feed 
+ Параметров найдено и записано = 3 
+  
+ Отчет по функции feed_mu_liq_cP 
  Количество параметров в функции = 3 
  Строка параметров:p_atma, t_C, feed 
  Параметров найдено и записано = 3 
   
  Отчет по функции feed_mod_separate_gas 
  Количество параметров в функции = 5 
- Строка параметров:k_sep, p_atma, t_C, feed, param 
+ Строка параметров:k_sep, p_atma, t_C, feed, sol_factor 
  Параметров найдено и записано = 5 
   
  Отчет по функции feed_mod_split 
- Количество параметров в функции = 7 
- Строка параметров:k_sep_gas, k_sep_oil, k_sep_wat, p_atma, t_C, feed, param 
- Параметров найдено и записано = 7 
+ Количество параметров в функции = 6 
+ Строка параметров:k_sep_gas, k_sep_oil, k_sep_wat, p_atma, t_C, feed 
+ Параметров найдено и записано = 6 
   
  Отчет по функции feed_mod_mix 
  Количество параметров в функции = 2 
@@ -245,67 +269,79 @@
  Строка параметров:p_atma, t_C, feed 
  Параметров найдено и записано = 3 
   
- Отчет по функции IPR_q_liq_sm3day 
- Количество параметров в функции = 6 
- Строка параметров:pi_sm3dayatm, p_res_atma, p_wf_atma, fw_perc, pb_atma, t_res_C 
- Параметров найдено и записано = 6 
-  
- Отчет по функции IPR_p_wf_atma 
- Количество параметров в функции = 6 
- Строка параметров:pi_sm3dayatm, p_res_atma, q_liq_sm3day, fw_perc, pb_atma, t_res_C 
- Параметров найдено и записано = 6 
+ Отчет по функции encode_ipr 
+ Количество параметров в функции = 5 
+ Строка параметров:p_res_atma, q_test_sm3day, pwf_test_atma, pi_sm3dayatm, feed_json 
+ Параметров найдено и записано = 5 
   
  Отчет по функции IPR_pi_sm3dayatm 
- Количество параметров в функции = 5 
- Строка параметров:Qtest_sm3day, pwf_test_atma, p_res_atma, fw_perc, pb_atma 
- Параметров найдено и записано = 5 
+ Количество параметров в функции = 3 
+ Строка параметров:IPR_json, q_liq_sm3day, pwf_test_atma 
+ Параметров найдено и записано = 3 
   
- Отчет по функции IPR_pq_crv 
- Количество параметров в функции = 5 
- Строка параметров:pi_sm3dayatm, p_res_atma, fw_perc, pb_atma, param 
- Параметров найдено и записано = 5 
+ Отчет по функции IPR_pwf_atma 
+ Количество параметров в функции = 2 
+ Строка параметров:IPR_json, q_liq_sm3day 
+ Параметров найдено и записано = 2 
+  
+ Отчет по функции IPR_q_liq_sm3day 
+ Количество параметров в функции = 2 
+ Строка параметров:IPR_json, p_wf_atma 
+ Параметров найдено и записано = 2 
+  
+ Отчет по функции IPR_crv 
+ Количество параметров в функции = 2 
+ Строка параметров:IPR_json, num_points 
+ Параметров найдено и записано = 2 
   
  Отчет по функции ESP_head_m 
- Количество параметров в функции = 8 
- Строка параметров:qliq_m3day, num_stages, freq_Hz, pump_id, mu_cSt, calibr_head, calibr_rate, calibr_power 
- Параметров найдено и записано = 8 
+ Количество параметров в функции = 4 
+ Строка параметров:qliq_m3day, esp_json, freq_Hz, mu_cSt 
+ Параметров найдено и записано = 4 
   
  Отчет по функции ESP_power_W 
- Количество параметров в функции = 8 
- Строка параметров:qliq_m3day, num_stages, freq_Hz, pump_id, mu_cSt, calibr_head, calibr_rate, calibr_power 
- Параметров найдено и записано = 8 
+ Количество параметров в функции = 4 
+ Строка параметров:qliq_m3day, esp_json, freq_Hz, mu_cSt 
+ Параметров найдено и записано = 4 
   
  Отчет по функции ESP_eff_fr 
- Количество параметров в функции = 8 
- Строка параметров:qliq_m3day, num_stages, freq_Hz, pump_id, mu_cSt, calibr_head, calibr_rate, calibr_power 
- Параметров найдено и записано = 8 
+ Количество параметров в функции = 4 
+ Строка параметров:qliq_m3day, esp_json, freq_Hz, mu_cSt 
+ Параметров найдено и записано = 4 
   
  Отчет по функции ESP_name 
  Количество параметров в функции = 1 
  Строка параметров:pump_id 
  Параметров найдено и записано = 1 
   
- Отчет по функции ESP_rate_max_sm3day 
+ Отчет по функции ESP_calc_stages_num 
  Количество параметров в функции = 4 
- Строка параметров:freq_Hz, pump_id, mu_cSt, calibr_rate 
+ Строка параметров:pump_id, head, f_nom_Hz, q_nom_sm3day 
  Параметров найдено и записано = 4 
   
- Отчет по функции ESP_optRate_m3day 
- Количество параметров в функции = 4 
- Строка параметров:freq_Hz, pump_id, mu_cSt, calibr_rate 
+ Отчет по функции ESP_rate_max_sm3day 
+ Количество параметров в функции = 3 
+ Строка параметров:esp_json, freq_Hz, mu_cSt 
  Параметров найдено и записано = 2 
+ Ошибка! Не найдены параметры! Количество: 1 
+ Список параметров: esp_json   
+  
+ Отчет по функции ESP_optRate_m3day 
+ Количество параметров в функции = 3 
+ Строка параметров:esp_json, freq_Hz, mu_cSt 
+ Параметров найдено и записано = 1 
  Ошибка! Не найдены параметры! Количество: 2 
- Список параметров: mu_cst  calibr_rate   
+ Список параметров: esp_json  mu_cst   
   
  Отчет по функции ESP_id_by_rate 
- Количество параметров в функции = 1 
- Строка параметров:q 
- Параметров найдено и записано = 1 
+ Количество параметров в функции = 2 
+ Строка параметров:q, size5 
+ Параметров найдено и записано = 2 
   
  Отчет по функции ESP_p_atma 
- Количество параметров в функции = 15 
- Строка параметров:p_calc_atma, t_intake_C, t_dis_C, feed, pump_id, num_stages, freq_Hz, calc_along_flow, calibr_head, calibr_rate, calibr_power, gas_correct_model, gas_correct_stage_by_stage, param, h_mes_top 
- Параметров найдено и записано = 15 
+ Количество параметров в функции = 13 
+ Строка параметров:p_calc_atma, t_intake_C, t_dis_C, feed, esp_json, freq_Hz, calc_along_flow, param, h_mes_top, q_liq_sm3day, fw_perc, rp_m3m3, q_gas_free_sm3day 
+ Параметров найдено и записано = 13 
   
  Отчет по функции ESP_motor_calc_mom 
  Количество параметров в функции = 6 
@@ -322,15 +358,22 @@
  Строка параметров:s, freq_Hz, U_V, motor_json, cable_json, param 
  Параметров найдено и записано = 6 
   
+ Отчет по функции ESP_gassep_name 
+ Количество параметров в функции = 1 
+ Строка параметров:gsep_type_TYPE 
+ Параметров найдено и записано = 1 
+  
  Отчет по функции ESP_gassep_ksep_d 
  Количество параметров в функции = 4 
  Строка параметров:gsep_type_TYPE, gas_frac_d, qliq_sm3day, freq_Hz 
  Параметров найдено и записано = 4 
   
  Отчет по функции ESP_system_calc 
- Количество параметров в функции = 13 
- Строка параметров:p_calc_atma, U_surf_high_lin_V, f_surf_Hz, power_fact_kW, t_intake_C, t_dis_C, feed, pump_json, motor_json, cable_json, gassep_json, calc_along_flow, param 
+ Количество параметров в функции = 17 
+ Строка параметров:p_calc_atma, U_surf_high_lin_V, f_surf_Hz, power_fact_kW, t_intake_C, t_dis_C, feed, pump_json, motor_json, cable_json, gassep_json, calc_along_flow, param, q_liq_sm3day, fw_perc, rp_m3m3, q_gas_free_sm3day 
  Параметров найдено и записано = 13 
+ Ошибка! Не найдены параметры! Количество: 4 
+ Список параметров: q_liq_sm3day  fw_perc  rp_m3m3  q_gas_free_sm3day   
   
  Отчет по функции GLV_q_gas_sm3day 
  Количество параметров в функции = 6 
@@ -372,26 +415,24 @@
  Параметров найдено и записано = 5 
   
  Отчет по функции GLV_IPO_p_open 
- Количество параметров в функции = 9 
- Строка параметров:p_bellow_atma, p_out_atma, t_C, GLV_type, d_port_mm, d_vkr1_mm, d_vkr2_mm, d_vkr3_mm, d_vkr4_mm 
- Параметров найдено и записано = 9 
+ Количество параметров в функции = 10 
+ Строка параметров:p_bellow_atma, p_out_atma, t_C, GLV_type, d_port_mm, d_vkr1_mm, d_vkr2_mm, d_vkr3_mm, d_vkr4_mm, gamma_gas 
+ Параметров найдено и записано = 10 
   
  Отчет по функции GLV_IPO_p_atma 
- Количество параметров в функции = 11 
- Строка параметров:p_bellow_atma, d_port_mm, p_calc_atma, q_gas_sm3day, t_C, calc_along_flow, GLV_type, d_vkr1_mm, d_vkr2_mm, d_vkr3_mm, d_vkr4_mm 
- Параметров найдено и записано = 8 
- Ошибка! Не найдены параметры! Количество: 3 
- Список параметров: p_calc_atma  q_gas_sm3day  calc_along_flow   
+ Количество параметров в функции = 12 
+ Строка параметров:p_bellow_atma, d_port_mm, p_calc_atma, q_gas_sm3day, t_C, calc_along_flow, GLV_type, d_vkr1_mm, d_vkr2_mm, d_vkr3_mm, d_vkr4_mm, gamma_gas 
+ Параметров найдено и записано = 12 
   
  Отчет по функции GLV_IPO_p_close 
- Количество параметров в функции = 9 
- Строка параметров:p_bellow_atma, p_out_atma, t_C, GLV_type, d_port_mm, d_vkr1_mm, d_vkr2_mm, d_vkr3_mm, d_vkr4_mm 
- Параметров найдено и записано = 9 
+ Количество параметров в функции = 10 
+ Строка параметров:p_bellow_atma, p_out_atma, t_C, GLV_type, d_port_mm, d_vkr1_mm, d_vkr2_mm, d_vkr3_mm, d_vkr4_mm, gamma_gas 
+ Параметров найдено и записано = 10 
   
  Отчет по функции well_ksep_natural_d 
- Количество параметров в функции = 5 
- Строка параметров:feed, p_intake_atma, t_intake_C, d_intake_mm, d_cas_mm 
- Параметров найдено и записано = 5 
+ Количество параметров в функции = 10 
+ Строка параметров:feed, p_intake_atma, t_intake_C, d_intake_mm, d_cas_mm, model, pkv_prod_period_ratio, h_intake_m, h_perf_m, param 
+ Параметров найдено и записано = 10 
   
  Отчет по функции well_ksep_total_d 
  Количество параметров в функции = 2 
@@ -399,31 +440,44 @@
  Параметров найдено и записано = 2 
   
  Отчет по функции well_calc_from_pwf 
- Количество параметров в функции = 16 
- Строка параметров:p_wf_atma, t_wf_C, feed_json, construction_json, esp_json, t_model_json, h_perf_m, h_esp_m, calibr_grav, calibr_fric, ksep, ipr_json, t_crit_C, p_cas_atma, flow_corr, fast 
- Параметров найдено и записано = 16 
+ Количество параметров в функции = 19 
+ Строка параметров:p_wf_atma, t_wf_C, feed_json, construction_json, esp_json, t_model_json, h_perf_m, h_esp_m, calibr_grav, calibr_fric, ksep, IPR_json, t_crit_C, p_cas_atma, flow_corr, fast, pkv_ratio, dcas_mm, dint_mm 
+ Параметров найдено и записано = 17 
+ Ошибка! Не найдены параметры! Количество: 2 
+ Список параметров: dcas_mm  dint_mm   
   
  Отчет по функции well_calc_from_pwh 
- Количество параметров в функции = 15 
- Строка параметров:p_wh_atma, t_wf_C, feed_json, construction_json, esp_json, t_model_json, h_perf_m, h_esp_m, calibr_grav, calibr_fric, ksep, ipr_json, t_crit_C, p_cas_atma, flow_corr 
- Параметров найдено и записано = 15 
+ Количество параметров в функции = 18 
+ Строка параметров:p_wh_atma, t_wf_C, feed_json, construction_json, esp_json, t_model_json, h_perf_m, h_esp_m, calibr_grav, calibr_fric, ksep, IPR_json, t_crit_C, p_cas_atma, flow_corr, pkv_ratio, dcas_mm, dint_mm 
+ Параметров найдено и записано = 16 
+ Ошибка! Не найдены параметры! Количество: 2 
+ Список параметров: dcas_mm  dint_mm   
   
  Отчет по функции well_calc_from_pintake 
  Количество параметров в функции = 16 
- Строка параметров:p_intake_atma, t_wf_C, feed_json, construction_json, esp_json, t_model_json, h_perf_m, h_esp_m, calibr_grav, calibr_fric, ksep, ipr_json, t_crit_C, p_cas_atma, p_wh_atma, flow_corr 
+ Строка параметров:p_intake_atma, t_wf_C, feed_json, construction_json, esp_json, t_model_json, h_perf_m, h_esp_m, calibr_grav, calibr_fric, ksep, IPR_json, t_crit_C, p_cas_atma, p_wh_atma, flow_corr 
  Параметров найдено и записано = 16 
   
  Отчет по функции Jet_q_nozzle_sm3day 
- Количество параметров в функции = 6 
- Строка параметров:feed_act, d_nozzle_mm, p_act_atma, p_in_atma, t_C, param 
+ Количество параметров в функции = 9 
+ Строка параметров:feed_act, d_nozzle_mm, p_act_atma, p_in_atma, t_C, param, type_q, kchoke, d_throat_mm 
  Параметров найдено и записано = 6 
+ Ошибка! Не найдены параметры! Количество: 3 
+ Список параметров: type_q  kchoke  d_throat_mm   
   
  Отчет по функции Jet_p_out_atma 
- Количество параметров в функции = 9 
- Строка параметров:feed_act, feed_in, d_nozzle_mm, d_throat_mm, p_act_atma, p_in_atma, t_C, param, type_q 
+ Количество параметров в функции = 13 
+ Строка параметров:feed_act, feed_in, d_nozzle_mm, d_throat_mm, p_act_atma, p_in_atma, t_C, param, type_q, model, k_n, k_td, kchoke 
  Параметров найдено и записано = 8 
- Ошибка! Не найдены параметры! Количество: 1 
- Список параметров: type_q   
+ Ошибка! Не найдены параметры! Количество: 5 
+ Список параметров: type_q  model  k_n  k_td  kchoke   
+  
+ Отчет по функции Jet_p_in_atma 
+ Количество параметров в функции = 9 
+ Строка параметров:feed_act, feed_in, d_nozzle_mm, d_throat_mm, p_out_atma, t_C, param, type_q, model 
+ Параметров найдено и записано = 6 
+ Ошибка! Не найдены параметры! Количество: 3 
+ Список параметров: p_out_atma  type_q  model   
   
  Отчет по функции unf_version 
  Количество параметров в функции = 1 
@@ -435,9 +489,7 @@
  Отчет по функции decode_json 
  Количество параметров в функции = 6 
  Строка параметров:json, transpose, keys_filter, only_values, safe_out, null_val 
- Параметров найдено и записано = 5 
- Ошибка! Не найдены параметры! Количество: 1 
- Список параметров: null_val   
+ Параметров найдено и записано = 6 
   
  Отчет по функции decode_json_p_atma 
  Количество параметров в функции = 1 
@@ -465,19 +517,11 @@
  Параметров найдено и записано = 1 
   
  Отчет по функции decode_json_crv 
- Количество параметров в функции = 2 
- Строка параметров:json, transpose 
+ Количество параметров в функции = 4 
+ Строка параметров:json, transpose, key_x, key_y 
  Параметров найдено и записано = 2 
-  
- Отчет по функции encode_PVT 
- Количество параметров в функции = 9 
- Строка параметров:gamma_gas, gamma_oil, gamma_wat, rsb_m3m3, pb_atma, t_res_C, bob_m3m3, muob_cP, PVT_corr_set 
- Параметров найдено и записано = 9 
-  
- Отчет по функции encode_feed 
- Количество параметров в функции = 5 
- Строка параметров:q_liq_sm3day, fw_perc, rp_m3m3, q_gas_free_sm3day, fluid 
- Параметров найдено и записано = 5 
+ Ошибка! Не найдены параметры! Количество: 2 
+ Список параметров: key_x  key_y   
   
  Отчет по функции encode_feed_list 
  Количество параметров в функции = 5 
@@ -487,14 +531,14 @@
  Список параметров: fluid   
   
  Отчет по функции encode_ESP_pump 
- Количество параметров в функции = 10 
- Строка параметров:ESP_ID, head_nom_m, num_stages, freq_Hz, calibr_head, calibr_rate, calibr_power, gas_correct_model, gas_correct_stage_by_stage, dnum_stages_integrate 
- Параметров найдено и записано = 10 
+ Количество параметров в функции = 11 
+ Строка параметров:q_nom_sm3day, head_nom_m, freq_nom_Hz, ESP_ID, num_stages, calibr_head, calibr_rate, calibr_power, gas_correct_model, gas_correct_stage_by_stage, dnum_stages_integrate 
+ Параметров найдено и записано = 11 
   
  Отчет по функции encode_ESP_motor 
- Количество параметров в функции = 15 
- Строка параметров:motor_ID, P_nom_kW, U_nom_lin_V, f_nom_Hz, eff_nom_fr, cosphi_nom_fr, slip_nom_fr, U_surf_high_lin_V, f_surf_Hz, power_fact_kW, d_od_mm, lambda_, alpha0, xi0, Ixcf 
- Параметров найдено и записано = 15 
+ Количество параметров в функции = 14 
+ Строка параметров:motor_ID, P_nom_kW, U_nom_lin_V, f_nom_Hz, eff_nom_fr, cosphi_nom_fr, slip_nom_fr, f_surf_Hz, power_fact_kW, d_od_mm, lambda_, alpha0, xi0, Ixcf 
+ Параметров найдено и записано = 14 
   
  Отчет по функции encode_ESP_cable 
  Количество параметров в функции = 7 
@@ -531,6 +575,16 @@
  Список параметров: keyrange  val_namerange  valrange   
   
  Отчет по функции encode_pipe 
+ Количество параметров в функции = 9 
+ Строка параметров:construction, t_model, flow_correlation, flow_along_coord, calibr_grav, calibr_fric, h_start_m, h_end_m, znlf 
+ Параметров найдено и записано = 9 
+  
+ Отчет по функции encode_choke 
+ Количество параметров в функции = 4 
+ Строка параметров:d_choke_mm, d_pipe_mm, calibr, CDischarge 
+ Параметров найдено и записано = 4 
+  
+ Отчет по функции encode_pipe_construction 
  Количество параметров в функции = 4 
  Строка параметров:h_list_m, diam_list_mm, roughness_m, h_vert_m 
  Параметров найдено и записано = 4 
@@ -613,24 +667,24 @@
   
  Отчет по функции Ei 
  Количество параметров в функции = 1 
- Строка параметров:x 
+ Строка параметров:X 
  Параметров найдено и записано = 1 
   
  Отчет по функции E_1 
  Количество параметров в функции = 1 
- Строка параметров:x 
+ Строка параметров:X 
  Параметров найдено и записано = 1 
   
  Отчет по функции transient_pd_radial 
  Количество параметров в функции = 5 
- Строка параметров:td, cd, skin, rd, Model 
+ Строка параметров:td, cd, skin, rd, model 
  Параметров найдено и записано = 4 
  Ошибка! Не найдены параметры! Количество: 1 
  Список параметров: cd   
   
  Отчет по функции transient_pwf_radial_atma 
  Количество параметров в функции = 14 
- Строка параметров:t_hr, q_liq_sm3day, pi_atma, skin, cs_1atm, r_m, rw_m, k_mD, h_m, porosity, mu_cP, b_m3m3, ct_1atm, Model 
+ Строка параметров:t_hr, q_liq_sm3day, pi_atma, skin, cs_1atm, r_m, rw_m, k_mD, h_m, porosity, mu_cP, b_m3m3, ct_1atm, model 
  Параметров найдено и записано = 14 
   
  Отчет по функции transient_cd_from_cs 
@@ -664,5 +718,25 @@
  Параметров найдено и записано = 6 
  Ошибка! Не найдены параметры! Количество: 1 
  Список параметров: pd   
+  
+ Отчет по функции unf_ksep_ESP_natural_simplified_Marquez 
+ Количество параметров в функции = 9 
+ Строка параметров:d_intake_m, d_cas_m, q_liq_rc_m3day, q_gas_rc_m3day, sigma_liq_Nm, rho_liq_rc_kgm3, rho_gas_rc_kgm3, out, calibr_st 
+ Параметров найдено и записано = 9 
+  
+ Отчет по функции unf_ksep_ESP_natural_mechanistic_Marquez 
+ Количество параметров в функции = 13 
+ Строка параметров:d_intake_m, d_cas_m, q_liq_rc_m3day, q_gas_rc_m3day, sigma_liq_Nm, rho_liq_rc_kgm3, rho_gas_rc_kgm3, mu_liq_rc_cP, mu_gas_rc_cP, out, hintake_m, calibr_li, calibr_st 
+ Параметров найдено и записано = 13 
+  
+ Отчет по функции unf_ksep_ESP_natural_mechanistic_pkv 
+ Количество параметров в функции = 15 
+ Строка параметров:d_intake_m, d_cas_m, q_liq_rc_m3day, q_gas_rc_m3day, sigma_liq_Nm, rho_liq_rc_kgm3, rho_gas_rc_kgm3, mu_liq_rc_cP, mu_gas_rc_cP, out, hintake_m, calibr_li, calibr_st, pkv_ratio, d_tub_m 
+ Параметров найдено и записано = 15 
+  
+ Отчет по функции unf_ksep_ESP_natural_mechanistic_pump_below_perf 
+ Количество параметров в функции = 13 
+ Строка параметров:d_tub_m, d_cas_m, q_liq_rc_m3day, q_gas_rc_m3day, sigma_liq_Nm, rho_liq_rc_kgm3, rho_gas_rc_kgm3, mu_liq_rc_cP, mu_gas_rc_cP, out, hperf_m, calibr_li, calibr_st 
+ Параметров найдено и записано = 13 
   
  

@@ -1,7 +1,7 @@
 '=======================================================================================
-'Unifloc 7.38 aspo                                    khabibullinra@gmail.com
+'Unifloc 7.50 year 2024                                  khabibullinra@gmail.com
 'Petroleum engineering calculations modules (macroses)
-'2000 - 2022
+'2000 - 2023
 '
 '=======================================================================================
 ' вспомогательные функции для проведения расчетов из рабочих книг Excel
@@ -28,16 +28,17 @@ Public Function decode_json(json, _
 ' only_values - если = 1 подписи выводиться не будут
 ' safe_out - флаг заставляет выводить массив сторок,
 '            что может работать лучше в офисе 2016 и ранее
+' null_val - символ для нулевого значения
 ' результат - закодированная строка
 'description_end
     Dim d As Dictionary
-    Dim C As Collection
+    Dim c As Collection
     Dim p
     Dim i As Integer, j As Integer
     Dim outarr() ' As String
     Dim outarr_safe()  As String
     Dim V
-    Dim K
+    Dim k
     
     Dim keylist As Dictionary
     Dim arrkeys As Variant
@@ -51,7 +52,14 @@ Public Function decode_json(json, _
     
     JsonConverter.JsonOptions.UseDoubleForLargeNumbers = True
     If TypeName(json) = "Variant()" Then
+        On Error GoTo er1:
         json = json(1, 1)
+        GoTo go:
+er1:
+        On Error GoTo err1:
+        json = json(1)
+go:
+        On Error GoTo err1:
     End If
     If VarType(json) = vbDouble Then
         ' если прилетело одно число то вернем его не раскодируя
@@ -89,8 +97,8 @@ Public Function decode_json(json, _
                 ReDim outarr(1 To 2, 1 To d.Count)
             End If
             For i = 1 To d.Count
-                K = d.keys(i - 1)
-                outarr(1, i) = K
+                k = d.keys(i - 1)
+                outarr(1, i) = k
                 If IsObject(d.Items(i - 1)) Then
                     Set V = d.Items(i - 1)
                 Else
@@ -126,7 +134,7 @@ Public Function decode_json(json, _
                 ReDim outarr(1 To d.Count, 1 To 2)
             End If
             For i = 1 To d.Count
-                K = d.keys(i - 1)
+                k = d.keys(i - 1)
                 outarr(i, 1) = d.keys(i - 1)
                 If IsObject(d.Items(i - 1)) Then
                     Set V = d.Items(i - 1)
@@ -163,19 +171,22 @@ Public Function decode_json(json, _
             Exit Function
         End If
         
-        Set C = p
-        If C.Count = 1 Then
-            If TypeName(C.Item(1)) = "Collection" Then
-                outarr = collection_to_array_2d(C.Item(1), Not transpose)
+        Set c = p
+        If c.Count = 1 Then
+            If TypeName(c.Item(1)) = "Collection" Then
+                outarr = collection_to_array_2d(c.Item(1), Not transpose)
+            ElseIf TypeName(c.Item(1)) = "Dictionary" Then
+                ReDim outarr(1 To 1, 1 To c.Count)
+                outarr(1, 1) = ConvertToJson(c.Item(1))
             Else
-                ReDim outarr(1 To 1, 1 To C.Count)
-                outarr(1, 1) = C.Item(1)
+                ReDim outarr(1 To 1, 1 To c.Count)
+                outarr(1, 1) = c.Item(1)
             End If
         Else
             i = 1
             If transpose Then
-                ReDim outarr(1 To 1, 1 To C.Count)
-                For Each V In C
+                ReDim outarr(1 To 1, 1 To c.Count)
+                For Each V In c
                     
                     Select Case TypeName(V)
                         Case "Collection", "Dictionary"
@@ -189,8 +200,8 @@ Public Function decode_json(json, _
                     i = i + 1
                 Next
             Else
-                ReDim outarr(1 To C.Count, 1 To 1)
-                For Each V In C
+                ReDim outarr(1 To c.Count, 1 To 1)
+                For Each V In c
                     Select Case TypeName(V)
                         Case "Collection", "Dictionary"
                             outarr(i, 1) = ConvertToJson(V)
@@ -281,11 +292,11 @@ Public Function decode_json_q_liq_sm3day(json)
         Dim f
         Set f = d("feed")
         If TypeName(f) = "Collection" Then
-            Dim C
+            Dim c
             Dim c_out As New Collection
-            For Each C In f
+            For Each c In f
                 Dim a As Double
-                a = C("q_liq_sm3day")
+                a = c("q_liq_sm3day")
                 c_out.Add a
             Next
             decode_json_q_liq_sm3day = ConvertToJson(c_out)
@@ -309,11 +320,40 @@ Public Function decode_json_k_sep(json)
                                     keys_filter:="k_sep", _
                                     only_values:=True)
 End Function
+' проверка если в словаре есть кривая, если есть вернуть ключи
+' кривая - два массива одной длины
+Public Function check_crv_in_dict(dict As Dictionary, ByRef outk As Collection) As Boolean
+    Dim k
+    Dim i As Integer
+    Dim c As Collection
+'    Dim outk As New Collection
+    Dim l As Integer
+    
+    l = 0
+    k = dict.keys
+    
+    check_crv_in_dict = True
+    
+    For i = LBound(k) To UBound(k)
+        If TypeName(dict(k(i))) = "Collection" Then
+            Set c = dict(k(i))
+            If l = 0 Then l = c.Count
+            If l > 0 And l = c.Count Then
+                ' нашли претендента на массив, надо сохранить ключ
+                outk.Add k(i)
+            Else
+                check_crv_in_dict = False
+            End If
+        End If
+    Next i
+End Function
 'description_to_manual      - для автогенерации
 ' Функция декодирования json строки с табличной кривой,
 ' позволяет вывести содержимое json строки в таблицу (на лист)
 Public Function decode_json_crv(json, _
-                       Optional transpose As Boolean = False)
+                       Optional transpose As Boolean = False, _
+                       Optional key_x As String = "", _
+                       Optional key_y As String = "")
 ' json   - строка содержащая результаты расчета
 ' transpose - выбор вывода в строки или в столбцы
 ' результат - закодированная строка
@@ -322,26 +362,65 @@ Public Function decode_json_crv(json, _
     Dim cx As Collection
     Dim cy As Collection
     
+    Dim ckeys As New Collection
+    
     Dim out_arr() ' As String
     Dim i As Integer
+    Dim keyx As String, keyy As String
+    
     
     On Error GoTo err1:
+        If IsArray(json) Then
+            json = json(1)
+        End If
+        
         Set d = ParseJson(json)
-        If d.Exists("curve_x") And d.Exists("curve_y") Then
-            Set cx = d(d("curve_x"))
-            Set cy = d(d("curve_y"))
+        
+        ' проверим, есть ли в словаре, что то похожее на массивы с данными кривой
+        Call check_crv_in_dict(d, ckeys)
+        
+        ' далее пытаемся определить ключи в которых лежат массивы с данными кривой
+        ' если заданы явно пытаемся использовать их
+        ' если есть ключи "curve_x", "curve_y" то берем ключи из них
+        ' иначе если есть берем первые два массива одинаковой длины
+        If Len(key_x) >= 1 Then
+            keyx = key_x
+        Else
+            keyx = "curve_x"
+            If d.Exists(keyx) Then
+                keyx = d(keyx)
+            Else
+                If ckeys.Count >= 2 Then keyx = ckeys.Item(1)
+            End If
+        End If
+        If Len(key_y) >= 1 Then
+            keyy = key_y
+        Else
+            keyy = "curve_y"
+            If d.Exists(keyy) Then
+                keyy = d(keyy)
+            Else
+                If ckeys.Count >= 2 Then keyy = ckeys.Item(2)
+            End If
+        End If
+        
+        If d.Exists(keyx) And d.Exists(keyy) Then
+            
+            Set cx = d(keyx)
+            Set cy = d(keyy)
+            
             If transpose Then
                 ReDim out_arr(1 To 2, 1 To cx.Count + 1)
-                out_arr(1, 1) = d("curve_x")
-                out_arr(2, 1) = d("curve_y")
+                out_arr(1, 1) = keyx
+                out_arr(2, 1) = keyy
                 For i = 1 To cx.Count
                     out_arr(1, i + 1) = cx.Item(i)
                     out_arr(2, i + 1) = cy.Item(i)
                 Next i
             Else
                 ReDim out_arr(1 To cx.Count + 1, 1 To 2)
-                out_arr(1, 1) = d("curve_x")
-                out_arr(1, 2) = d("curve_y")
+                out_arr(1, 1) = keyx
+                out_arr(1, 2) = keyy
                 For i = 1 To cx.Count
                     out_arr(i + 1, 1) = cx.Item(i)
                     out_arr(i + 1, 2) = cy.Item(i)
@@ -349,7 +428,7 @@ Public Function decode_json_crv(json, _
             
             End If
         Else
-            decode_json_crv = "error:decode_json_crv:no curve found in json. ""curve_x"" and ""curve_y"" keys musb be in json"
+            decode_json_crv = "error:decode_json_crv:no curve found in json"
             Exit Function
         End If
         
@@ -357,100 +436,6 @@ Public Function decode_json_crv(json, _
     Exit Function
 err1:
     decode_json_crv = "error:decode_json_crv: " & Err.Description
-End Function
-'description_to_manual      - для автогенерации
-' Функция кодирования параметров PVT в строку,
-' для передачи PVT свойств в прикладные функции Унифлок.
-Public Function encode_PVT( _
-                    Optional ByVal gamma_gas As Double = const_gg_, _
-                    Optional ByVal gamma_oil As Double = const_go_, _
-                    Optional ByVal gamma_wat As Double = const_gw_, _
-                    Optional ByVal rsb_m3m3 = const_rsb_default, _
-                    Optional ByVal pb_atma = 0, _
-                    Optional ByVal t_res_C = 80, _
-                    Optional ByVal bob_m3m3 = 0, _
-                    Optional ByVal muob_cP = 0, _
-                    Optional ByVal PVT_corr_set = 0 _
-                    )
-' gamma_gas - удельная плотность газа, по воздуху.
-'             По умолчанию const_gg_ = 0.6
-' gamma_oil - удельная плотность нефти, по воде.
-'             По умолчанию const_go_ = 0.86
-' gamma_wat - удельная плотность воды, по воде.
-'             По умолчанию const_gw_ = 1
-' rsb_m3m3  - газосодержание при давлении насыщения, м3/м3.
-'             По умолчанию const_rsb_default = 100
-' pb_atma - давление насыщения при заданной температуре, атма.
-'           Опциональный калибровочный параметр,
-'           если не задан или = 0, то рассчитается по корреляции.
-' t_res_C  - пластовая температура, С.
-'           Учитывается при расчете давления насыщения.
-'           По умолчанию  const_tres_default = 90
-' bob_m3m3 - объемный коэффициент нефти при давлении насыщения
-'            и пластовой температуре, м3/м3.
-'            По умолчанию рассчитывается по корреляции.
-' muob_cP  - вязкость нефти при давлении насыщения.
-'            и пластовой температуре, сП.
-'            По умолчанию рассчитывается по корреляции.
-' PVT_corr_set - номер набора PVT корреляций для расчета:
-'           0 - на основе корреляции Стендинга;
-'           1 - на основе кор-ии Маккейна;
-'           2 - на основе упрощенных зависимостей.
-' результат - закодированная строка
-'description_end
-    
-    Dim str As String
-    Dim frmt As String
-    Dim frmt_int As String
-    
-    Dim pvt_dict As New Dictionary
-    
-    pvt_dict.Add "gamma_gas", Round(gamma_gas, const_num_decimal_out)
-    pvt_dict.Add "gamma_oil", Round(gamma_oil, const_num_decimal_out)
-    pvt_dict.Add "gamma_wat", Round(gamma_wat, const_num_decimal_out)
-    pvt_dict.Add "rsb_m3m3", Round(rsb_m3m3, const_num_decimal_out)
-    
-    If pb_atma > 0 Then
-        pvt_dict.Add "pb_atma", Round(pb_atma, const_num_decimal_out)
-        pvt_dict.Add "t_res_C", Round(t_res_C, const_num_decimal_out)
-    End If
-    If bob_m3m3 > 0 Then pvt_dict.Add "bob_m3m3", Round(bob_m3m3, const_num_decimal_out)
-    If muob_cP > 0 Then pvt_dict.Add "muob_cP", Round(muob_cP, const_num_decimal_out)
-    If PVT_corr_set >= 0 And PVT_corr_set <= 2 Then
-        pvt_dict.Add "PVT_corr_set", PVT_corr_set
-    End If
-    encode_PVT = ConvertToJson(pvt_dict)
-End Function
-'description_to_manual      - для автогенерации
-'Функция кодирования параметров потока флюидов в строку,
-Public Function encode_feed( _
-          Optional ByVal q_liq_sm3day As Double = 10, _
-          Optional ByVal fw_perc As Double = -1, _
-          Optional ByVal rp_m3m3 As Double = -1, _
-          Optional ByVal q_gas_free_sm3day As Double = -1, _
-          Optional ByVal fluid As String = PVT_DEFAULT)
-' q_liq_sm3day  - дебит жидкости в ст.условиях.
-' fw_perc       - ободненность, %
-' rp_m3m3       - газовый фактор, м3/м3:
-' q_gas_free_sm3day - расход свободного газа, ст. м3/сут
-' fluid         -  закодированная PVT строка
-'                  с параметрами флюида
-' результат - закодированная строка
-'description_end
-    
-    Dim str As String
-    Dim frmt As String
-    Dim frmt_int As String
-    
-    Dim dict As Dictionary
-    Set dict = ParseJson(fluid)
-    
-    dict("q_liq_sm3day") = Round(q_liq_sm3day, const_num_decimal_out)
-    If fw_perc >= 0 Then dict("fw_perc") = Round(fw_perc, const_num_decimal_out)
-    If rp_m3m3 > 0 Then dict("rp_m3m3") = Round(rp_m3m3, const_num_decimal_out)
-    If q_gas_free_sm3day > 0 Then dict("q_gas_free_sm3day") = Round(q_gas_free_sm3day, const_num_decimal_out)
-    
-    encode_feed = ConvertToJson(dict)
 End Function
 'description_to_manual      - для автогенерации
 'Функция кодирования параметров потока флюидов в строку,
@@ -467,17 +452,13 @@ Public Function encode_feed_list( _
 '
 ' результат - закодированная строка
 'description_end
-    
     Dim str As String
     Dim frmt As String
     Dim frmt_int As String
-    
     Dim dict As Dictionary
-    
     Dim col As Collection
     Dim col_feed As New Collection
     Dim q
-    
     Set col = ParseJson(q_liq_sm3day)
     For Each q In col
         'Set dict = New Dictionary
@@ -493,22 +474,26 @@ End Function
 'description_to_manual      - для автогенерации
 ' функция кодирования параметров работы УЭЦН в строку
 Public Function encode_ESP_pump( _
-            Optional ByVal ESP_ID As Long = "1005", _
+            Optional ByVal q_nom_sm3day As Double = 50, _
             Optional ByVal head_nom_m As Double = 2000, _
-            Optional ByVal num_stages As Integer = 0, _
-            Optional ByVal freq_Hz As Double = 50, _
+            Optional ByVal freq_nom_Hz As Double = 50, _
+            Optional ByVal ESP_ID As Long = -1, _
+            Optional ByVal num_stages As Integer = -1, _
             Optional ByVal calibr_head As Double = 1, _
             Optional ByVal calibr_rate As Double = 1, _
             Optional ByVal calibr_power As Double = 1, _
             Optional ByVal gas_correct_model As Integer = 0, _
             Optional ByVal gas_correct_stage_by_stage As Integer = 0, _
             Optional ByVal dnum_stages_integrate = 1)
-' esp_ID         - идентификатор насоса
+' q_nom_sm3day   - номинальная подача ЭЦН
+'                - соответствует подаче в записи ЭЦН 50-2000
 ' head_nom_m     - номинальный напор системы УЭЦН
-'                - соответствует напора в записи ЭЦН 50-2000
+'                - соответствует напору в записи ЭЦН 50-2000
+' freq_nom_Hz    - номинальная частота, Гц, для которой задан номинальный напор
+' esp_ID         - идентификатор насоса
+'                  если задан - перекрывает подачу
 ' num_stages     - количество ступеней, если задано
 '                  перекрывает значение напора
-' freq_Hz        - частота, Гц
 ' calibr_head    - калибровка по напору
 ' calibr_rate    - калибровка по подаче
 ' calibr_power   - калибровка по мощности
@@ -517,16 +502,25 @@ Public Function encode_ESP_pump( _
 ' dnum_stages_integrate - шаг интегрирования для расчета
 ' результат         - строка с параметрами УЭЦН
 'description_end
-'    Dim calibr_head As Double
-'    Dim calibr_rate As Double
-'    Dim calibr_power As Double
     Dim dict As New Dictionary
+    Dim esp As New CESPpump
     
+    If ESP_ID <= 0 Then
+        ESP_ID = ESP_id_by_rate(q_nom_sm3day, freq_nom_Hz)
+    End If
+    If num_stages <= 0 Then
+        num_stages = ESP_calc_stages_num(ESP_ID, head_nom_m, freq_nom_Hz, q_nom_sm3day)
+    End If
     
+    Call esp.set_ID(ESP_ID, freq_nom_Hz)
+    
+    dict.Add "q_nom_sm3day", esp.q_nom_sm3day
+    dict.Add "head_nom_m", esp.head_nom_m * num_stages
+    dict.Add "freq_nom_Hz", esp.freq_nom_Hz
+    dict.Add "name", "ESP-" & Round(esp.q_nom_sm3day) & "-" & Round(esp.head_nom_m * num_stages)
     dict.Add "ESP_ID", ESP_ID
-    dict.Add "head_nom_m", head_nom_m
-    If num_stages > 0 Then dict.Add "num_stages", num_stages
-    dict.Add "freq_Hz", freq_Hz
+    dict.Add "num_stages", num_stages
+    
     dict.Add "gas_correct_model", gas_correct_model
     dict.Add "gas_correct_stage_by_stage", gas_correct_stage_by_stage
     dict.Add "calibr_head", calibr_head
@@ -548,7 +542,6 @@ Public Function encode_ESP_motor( _
             Optional ByVal eff_nom_fr As Double = 0.82, _
             Optional ByVal cosphi_nom_fr As Double = 0.88, _
             Optional ByVal slip_nom_fr As Double = 0.053, _
-            Optional ByVal U_surf_high_lin_V As Double = 1000, _
             Optional ByVal f_surf_Hz As Double = 50, _
             Optional ByVal power_fact_kW As Double = 30, _
             Optional ByVal d_od_mm As Double = 0, _
@@ -565,7 +558,6 @@ Public Function encode_ESP_motor( _
 'eff_nom_fr     - КПД при номинальном режиме работы
 'cosphi_nom_fr  - коэффициент мощности при номинальный
 'slip_nom_fr    - скольжение при номинальном режиме работы
-'U_surf_high_lin_V - напряжение на поверхности
 'f_surf_Hz - частота тока на поверхности
 'power_fact_kW - фактическая потребляемая мощность
 'd_od_mm            - внешний диаметр - габарит ПЭД
@@ -579,21 +571,10 @@ Public Function encode_ESP_motor( _
 'description_end
     
     
-' ранее эти данные передавались, но наверное они лишние
-    
-'            Optional ByVal U_surf_high_lin_V As Double, _
-'            Optional ByVal f_surf_Hz As Double, _
-'            Optional ByVal power_fact_kW As Double, _
-''U_surf_high_lin_V  - напряжение на поверхности
-'                     на высокой стороне трансформатора
-'                     для motorID = 2
-'f_surf_Hz          - частота питающего напряжения
-'power_fact_kW      - фактическая мощность потребляемая
-    
     Dim dict As New Dictionary
     
     dict.Add "motor_ID", motor_ID
-   If U_surf_high_lin_V > 0 Then dict.Add "U_surf_high_lin_V", U_surf_high_lin_V
+'   If U_surf_high_lin_V > 0 Then dict.Add "U_surf_high_lin_V", U_surf_high_lin_V
    If f_surf_Hz > 0 Then dict.Add "f_surf_Hz", f_surf_Hz
    If power_fact_kW > 0 Then dict.Add "power_fact_kW", power_fact_kW
    If U_nom_lin_V > 0 Then dict.Add "U_nom_lin_V", U_nom_lin_V
@@ -643,11 +624,21 @@ Public Function encode_ESP_cable( _
     encode_ESP_cable = ConvertToJson(dict)
     
 End Function
+Public Function encode_ESP_gassep( _
+            Optional ByVal gassep_type As Long = 0)
+            
+' gassep_type - тип - номер из базы
+    Dim dict As New Dictionary
+    
+    If gassep_type >= 0 Then dict.Add "gassep_type", gassep_type
+    
+    encode_ESP_gassep = ConvertToJson(dict)
+End Function
 'description_to_manual      - для автогенерации
 ' функция кодирования газосепаратора
 Public Function encode_ESP_separation( _
-            Optional ByVal separation_mode As String, _
-            Optional ByVal gassep_type As Long, _
+            Optional ByVal separation_mode As String = 0, _
+            Optional ByVal gassep_type As Long = 1, _
             Optional ByVal natsep_type As Long = 0, _
             Optional ByVal psep_man_atma As Double = 0, _
             Optional ByVal tsep_man_C As Double = 0, _
@@ -937,7 +928,7 @@ Public Function encode_json(rng, _
 ' результат - закодированная строка
 'description_end
     Dim d As New Dictionary
-    Dim C As New Collection
+    Dim c As New Collection
     
     Dim t As Variant
     Dim i As Integer
@@ -947,17 +938,26 @@ Public Function encode_json(rng, _
     If UBound(t, 2) = 1 Or always_collection Then
         If UBound(t, 2) = 1 Then
             For i = 1 To UBound(t)
-                If Not IsEmpty(t(i, 1)) Then C.Add t(i, 1)
+                If Not IsEmpty(t(i, 1)) Then
+                    c.Add t(i, 1)
+                End If
             Next i
-            encode_json = ConvertToJson(C)
+            encode_json = ConvertToJson(c)
         Else
             ' далее range преобразуется в массив, который сразу кодируется в json
             encode_json = ConvertToJson(array_from_range(rng, True))
         End If
     Else
+        On Error GoTo er1:
         For i = 1 To UBound(t)
-            d(t(i, 1)) = t(i, 2)
+                d(t(i, 1)) = ParseJson(t(i, 2))
+                GoTo cont1:
+er1:
+                d(t(i, 1)) = t(i, 2)
+                Resume Next
+cont1:
         Next i
+        On Error GoTo 0
         encode_json = ConvertToJson(d)
     End If
     
@@ -997,11 +997,70 @@ End Function
    combine_json = Left(str1, Len(str1) - 1) & "," & Right(str2, Len(str2) - 1)
  End Function
 'description_to_manual      - для автогенерации
+' задание объекта трубы для расчета
+Public Function encode_pipe( _
+        Optional ByVal construction As String = "", _
+        Optional ByVal t_model As String = "", _
+        Optional ByVal flow_correlation As Integer = 0, _
+        Optional ByVal flow_along_coord As Boolean = True, _
+        Optional ByVal calibr_grav As Double = 1, _
+        Optional ByVal calibr_fric As Double = 1, _
+        Optional ByVal h_start_m As Double = -10000000000.1, _
+        Optional ByVal h_end_m As Double = 10000000000.1, _
+        Optional ByVal znlf As Boolean = False)
+' construction - json кодирующий конструкцию скважины,
+' используйте encode_pipe_construction
+' t_model - температурная модель,
+' используйте encode_t_model
+' flow_correlation - корреляция многофазного потока
+' flow_along_coord - флаг, определяющий направление потока
+' calibr_grav - калибровка по гравитации (множитель)
+' calibr_fric - калибровка по трению (множитель)
+' h_start_m - измеренная глубина начала трубы, м
+' h_end_m - измеренная глубина конца трубы, м
+' znlf - флаг для включения барботажа
+'description_end
+    Dim dict As New Dictionary
+    If construction = "" Then construction = encode_pipe_construction()
+    dict.Add "construction", ParseJson(construction)
+    If t_model = "" Then t_model = encode_t_model()
+    dict.Add "t_model", ParseJson(t_model)
+    dict.Add "flow_correlation", flow_correlation
+    dict.Add "flow_along_coord", flow_along_coord
+    dict.Add "calibr_grav", calibr_grav
+    dict.Add "calibr_fric", calibr_fric
+    If h_start_m > -1000000000 Then dict.Add "h_start_m", h_start_m
+    If h_end_m < 1000000000 Then dict.Add "h_end_m", h_end_m
+    dict.Add "znlf", znlf
+    
+    encode_pipe = ConvertToJson(dict)
+End Function
+'description_to_manual      - для автогенерации
+'кодирование параметров штуцера
+Public Function encode_choke( _
+            Optional ByVal d_choke_mm As Double = 10, _
+            Optional ByVal d_pipe_mm As Double = 70, _
+            Optional ByVal calibr As Double = 1, _
+            Optional ByVal CDischarge As Double = 0.826)
+' d_choke_mm - диаметр штуцера, мм
+' d_pipe_mm - диаметр трубы прилегающей к штуцеру, мм
+' calibr - калибровочный параметр штуцера
+' CDischarge - настроечный параметр штуцера
+'description_end
+    Dim dict As New Dictionary
+    dict.Add "d_choke_mm", d_choke_mm
+    dict.Add "d_pipe_mm", d_pipe_mm
+    dict.Add "calibr", calibr
+    dict.Add "CDischarge", CDischarge
+    
+    encode_choke = ConvertToJson(dict)
+End Function
+'description_to_manual      - для автогенерации
 ' задание параметров траектории трубы в json строке
-Public Function encode_pipe(Optional h_list_m As Variant = 1000, _
-                            Optional diam_list_mm As Variant = 62, _
-                            Optional roughness_m As Double = 0, _
-                            Optional h_vert_m As Variant = -1)
+Public Function encode_pipe_construction(Optional h_list_m As Variant = 1000, _
+                                         Optional diam_list_mm As Variant = 62, _
+                                         Optional roughness_m As Double = 0, _
+                                         Optional h_vert_m As Variant = -1)
 'h_list_m - число - длина вертикальной трубы или массив или range
 '         содержащий зависимость вертикальной глубины от измеренной
 'diam_list_mm - число-внутренний диаметр трубы или массив или range
@@ -1021,8 +1080,7 @@ Public Function encode_pipe(Optional h_list_m As Variant = 1000, _
     
     Dim i As Integer
 On Error GoTo er1:
-    h_raw = array_num_from_range(h_list_m, remove_zeros:=True)
-    
+    h_raw = array_num_from_range(h_list_m, remove_zeros:=True, key_crv:="h_list_m", key_x:="hmes_m", key_y:="hvert_m")
     h_vert = array_num_from_range(h_vert_m, remove_zeros:=True)
     
     If UBound(h_vert, 1) = UBound(h_raw, 1) And h_vert(UBound(h_vert, 1), 1) > 0 Then
@@ -1047,9 +1105,9 @@ On Error GoTo er1:
     End If
     h_curve.xName = const_name_hmes_m
     h_curve.yName = const_name_hvert_m
-    dict.Add const_name_h_list_m, h_curve.getDict
+    dict.Add const_name_h_list_m, h_curve.getDictShort
     
-    d_raw = array_num_from_range(diam_list_mm, remove_zeros:=True)
+    d_raw = array_num_from_range(diam_list_mm, remove_zeros:=True, key_crv:="diam_list_mm", key_x:="hmes_m", key_y:="diam_int_mm")
     
     If UBound(d_raw, 2) = 1 Then
         d_curve.AddPoint 0, d_raw(1, 1)
@@ -1064,22 +1122,75 @@ On Error GoTo er1:
     End If
     d_curve.xName = const_name_hmes_m
     d_curve.yName = const_name_diam_int_mm
-    dict.Add const_name_diam_list_mm, d_curve.getDict
+    dict.Add const_name_diam_list_mm, d_curve.getDictShort
     
     If roughness_m > 0 Then
         dict.Add "roughness_m", roughness_m
     End If
     
-    encode_pipe = ConvertToJson(dict)
+    encode_pipe_construction = ConvertToJson(dict)
     
     Exit Function
     
 er1:
-    encode_pipe = "error encode_pipe " & Err.Description
+    encode_pipe_construction = "error encode_pipe_construction " & Err.Description
     Exit Function
 er2:
-    encode_pipe = "error encode_pipe. zero length"
+    encode_pipe_construction = "error encode_pipe_construction. zero length"
     Exit Function
+End Function
+Public Function encode_crv(crv_tab, _
+                    Optional xlabel As String = "x", _
+                    Optional ylabel As String = "y", _
+                    Optional name As String = "crv")
+    Dim val
+    Dim crv As New CInterpolation
+    Dim i As Integer
+    Dim dict As New Dictionary
+    Dim rng As range
+    
+On Error GoTo er2:
+    Set dict = New Dictionary
+    If (TypeOf crv_tab Is range) Then
+        Set rng = crv_tab
+        If Not IsNumeric(rng.Cells(1, 1)) Then
+            If Not IsNumeric(rng.Cells(2, 1)) Then
+                name = rng.Cells(1, 1)
+                xlabel = rng.Cells(2, 1)
+                ylabel = rng.Cells(2, 2)
+            Else
+                xlabel = rng.Cells(1, 1)
+                ylabel = rng.Cells(1, 2)
+            End If
+        End If
+    End If
+    GoTo resume_after_error
+er2:
+    Resume resume_after_error
+resume_after_error:
+On Error GoTo er1:
+    val = array_num_from_range(crv_tab, remove_zeros:=True)
+    
+    If UBound(val, 2) = 1 Then
+        For i = LBound(val, 1) To UBound(val, 1)
+            crv.AddPoint val(i, 1), val(i, 1)
+        Next i
+    ElseIf UBound(val, 2) >= 2 Then
+        For i = LBound(val, 1) To UBound(val, 1)
+            crv.AddPoint val(i, 1), val(i, 2)
+        Next i
+    End If
+    
+    crv.xName = xlabel
+    crv.yName = ylabel
+    dict.Add name, crv.getDictShort
+    encode_crv = ConvertToJson(dict)
+    
+    Exit Function
+    
+er1:
+    encode_crv = "error encode_crv " & Err.Description
+    
 End Function
 'description_to_manual      - для автогенерации
 ' кодирование параметров температурной модели трубы/скважины
@@ -1119,7 +1230,11 @@ On Error GoTo er1:
     
     For i = LBound(t_raw, 1) To UBound(t_raw, 1)
         If UBound(t_raw, 2) = 1 Then
-            t_curve.AddPoint t_raw(i, 1), t_raw(i, 1)
+            If UBound(t_raw, 1) = 1 Then
+                t_curve.AddPoint 1000, t_raw(i, 1)
+            Else
+                t_curve.AddPoint 1000 * (i - 1), t_raw(i, 1)
+            End If
         Else
             t_curve.AddPoint t_raw(i, 1), t_raw(i, 2)
         End If
@@ -1176,18 +1291,18 @@ On Error GoTo er1:
             dict.Add prm_time_calc_hr, t_calc_hr
             t_curve.xName = const_name_hvert_m
             t_curve.yName = const_name_t_C
-            dict.Add const_name_t_list_C, t_curve.getDict
+            dict.Add const_name_t_list_C, t_curve.getDictShort
         Case StartEndTemp
             Call dict.Add(prm_t_start_C, t_start_C)
             Call dict.Add(prm_t_end_C, t_end_C)
         Case GeoGradTemp
             t_curve.xName = const_name_hvert_m
             t_curve.yName = const_name_t_C
-            dict.Add const_name_t_list_C, t_curve.getDict
+            dict.Add const_name_t_list_C, t_curve.getDictShort
         Case LengthTemp
             t_curve.xName = const_name_hmes_m   ' here we change vector name
             t_curve.yName = const_name_t_C
-            dict.Add const_name_t_list_C, t_curve.getDict
+            dict.Add const_name_t_list_C, t_curve.getDictShort
     End Select
     encode_t_model = ConvertToJson(dict)
     
@@ -1199,21 +1314,6 @@ er1:
 er2:
     encode_t_model = "error encode_t_model. zero length"
     Exit Function
-End Function
-Public Function encode_ipr(ByVal p_res_atma As Double, _
-                           ByVal pi_m3dayatm As Double, _
-                  Optional ByVal pb_atma As Double = 0, _
-                  Optional ByVal fw_perc As Double = 0)
-    
-    Dim dict As New Dictionary
-    dict.Add "p_res_atma", p_res_atma
-    dict.Add "pi_m3dayatm", pi_m3dayatm
-    dict.Add "pb_atma", pb_atma
-    dict.Add "fw_perc", fw_perc
-    
-    encode_ipr = ConvertToJson(dict)
-    
-    
 End Function
 'description_to_manual      - для автогенерации
 ' кодирование списка значений для векторных расчетов
@@ -1262,7 +1362,7 @@ Public Function encode_linspace(ByVal val_from As Double, _
     Dim step As Double
     step = (val_to - val_from) / num
     Do
-        col.Add val_from + step * i
+        col.Add Round(val_from + step * i, 3)
         i = i + 1
         ' на выходе позволим небольшую ошибку для double значений, чтобы проще искать границы
     Loop Until i > num

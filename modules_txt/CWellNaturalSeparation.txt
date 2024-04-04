@@ -1,0 +1,927 @@
+'=======================================================================================
+'Unifloc 7.50 year 2024                                  khabibullinra@gmail.com
+'Petroleum engineering calculations modules (macroses)
+'2000 - 2023
+'
+'=======================================================================================
+'
+'
+' класс для расчета естественной сепарации газа на приеме ЭЦН
+' реализованы модели
+' - упрощенная модель Маркеса-Прадо
+' - механистическая модель Маркеса-Прадо для обычного ЭЦН
+' - механистическая модель Михайлова для реверсивной потока с ЭЦН ниже перфорации
+' - механистическая модель на основе модели Маркеса-Прадо для ЭЦН в ПКВ режиме
+Option Explicit
+Public d_tub_m As Double      ' диаметр НКТ внешний
+Public d_intake_m As Double   ' диаметр приема ЭЦН
+Public d_cas_m As Double      ' диаметр э/к в месте установки ЭЦН
+Public h_perf_m As Double     ' высота перфорации для модели реверсивного потока с ЭЦН ниже перфорации
+Public h_intake_m As Double   ' высота приемной сетки ЭЦН
+' свойства флюида для расчета
+Public qliq_rc_m3day As Double   ' дебит жидкости из пласта (для ПКВ - средний суточный дебит)
+Public q_gas_rc_m3day As Double  ' дебит газа из пласта (для ПКВ - средний суточный дебит)
+Public pkv_ratio As Double ' отношение времени работы к полному циклу (от 0 до 1) для ПКВ режима
+Public sigma_liq_Nm As Double    ' пов натяжение жидкость газ
+Public rho_liq_rc_kgm3 As Double ' плотность жидкости в рабочих условиях
+Public rho_gas_rc_kgm3 As Double ' плотность газа в рабочих условиях
+Public mu_liq_cP As Double       ' вязкость жидкости в рабочих условиях
+Public mu_gas_cP As Double       ' вязкость жидкости в рабочих условиях
+Public calibr_li As Double ' калибровочный множитель на характерный размер пузырьков газа
+                           ' применяется для корреляции TUALP для настройки механистической модели
+Public ksep_work As Double           ' коэффициент сепарации для флюида из пласта
+                                     ' учитывает только газ, который поступил за время работы скважины
+Public ksep_average_cycle As Double  ' для ПКВ режима - средний коэффициент сепарации за цикл
+                                     ' учитывающий весь газ, включая за время простоя
+                                
+'Public ksep_full_work As Double      ' коэффициент сепарации для флюида поступающего в насос
+'                                     ' учитывает во время работы флюид поступающий из затруба
+Public bbl_track As New CInterpolation ' кривая для записи траектории пузырька
+Private Sub Class_Initialize()
+    calibr_li = 2   ' подобран для согласования эмпирической и механистической модели Маркеса Прадо
+End Sub
+' ===================================================================================================
+' набор свойств вычисляемых на основе исходных данных
+' ===================================================================================================
+' площадь кольцевого пространства в около приема насоса
+Public Property Get area_annulus_intake_m2() As Double
+    area_annulus_intake_m2 = const_Pi * (d_cas_m ^ 2 - d_intake_m ^ 2) / 4
+End Property
+' площадь кольцевого пространства между НКТ и э/к
+Public Property Get area_annulus_tubing_m2() As Double
+    area_annulus_tubing_m2 = const_Pi * (d_cas_m ^ 2 - d_tub_m ^ 2) / 4
+End Property
+' гидравлический диаметр кольцевого зазора около приема насоса
+Public Property Get d_h() As Double
+    d_h = d_cas_m - d_intake_m
+End Property
+'volume fraction of liquid at no-slip conditions
+Public Property Get lambda_liq() As Double
+    lambda_liq = qliq_rc_m3day / (qliq_rc_m3day + q_gas_rc_m3day)
+End Property
+'no-slip mixture density
+Public Property Get rho_mix_kgm3()
+    rho_mix_kgm3 = rho_liq_rc_kgm3 * lambda_liq + rho_gas_rc_kgm3 * (1 - lambda_liq)
+End Property
+'no-slip mixture viscosity
+Public Property Get mu_mix_cP()
+    mu_mix_cP = mu_liq_cP * lambda_liq + mu_gas_cP * (1 - lambda_liq)
+End Property
+Public Property Get mu_mix_Pasec()
+    mu_mix_Pasec = mu_mix_cP * 0.001
+End Property
+Public Property Get mu_liq_Pasec()
+    mu_liq_Pasec = mu_liq_cP * 0.001
+End Property
+Public Property Get mu_gas_Pasec()
+    mu_gas_Pasec = mu_gas_cP * 0.001
+End Property
+'Liquid sureficial velocity
+Public Property Get vsl_msec() As Double
+    vsl_msec = 0.000011574 * qliq_rc_m3day / area_annulus_intake_m2
+End Property
+'Liquid sureficial velocity
+Public Property Get vsl_tub_msec() As Double
+    vsl_tub_msec = 0.000011574 * qliq_rc_m3day / area_annulus_tubing_m2
+End Property
+' абсолютная скорость газа в реверсивном потоке жидкости
+' используется для расчета ЭЦН ниже перфорации и для ПКВ режима
+Public Property Get vg_downflow_msec() As Double
+'
+'    If pkv_ratio > 0 Then
+'        vg_downflow_msec = 1.2 * (vsg_msec - vsl_msec) * (1 / pkv_ratio - 1) + v_inf_msec(1)
+'    Else
+'       vg_downflow_msec = 1.2 * (vsg_msec - vsl_msec) + v_inf_msec(1)
+'    End If
+' для оценки границы существования режима при котором жидкость двигается вниз
+' а газ вверх будем использовать только приведенную скорость жидкости
+' это примерно верно исходя из экспериментов
+    If pkv_ratio > 0 Then
+        vg_downflow_msec = 1.3 * (-vsl_msec) * (1 / pkv_ratio - 1) + v_inf_msec(1)
+    Else
+       vg_downflow_msec = 1.3 * (-vsl_msec) + v_inf_msec(1)
+    End If
+End Property
+' абсолютная скорость газа в реверсивном потоке жидкости
+' используется для расчета ЭЦН ниже перфорации и для ПКВ режима
+Public Property Get vg_downflow_tub_msec() As Double
+'
+'    If pkv_ratio > 0 Then
+'        vg_downflow_tub_msec = 1.2 * (vsg_tub_msec - vsl_tub_msec) * (1 / pkv_ratio - 1) + v_inf_msec(1)
+'    Else
+'       vg_downflow_tub_msec = 1.2 * (vsg_tub_msec - vsl_tub_msec) + v_inf_msec(1)
+'    End If
+    
+    If pkv_ratio > 0 Then
+        vg_downflow_tub_msec = 1.3 * (-vsl_tub_msec) * (1 / pkv_ratio - 1) + v_inf_msec(1)
+    Else
+       vg_downflow_tub_msec = 1.3 * (-vsl_tub_msec) + v_inf_msec(1)
+    End If
+End Property
+'Gas sureficial velocity
+Public Property Get vsg_msec() As Double
+    vsg_msec = 0.000011574 * q_gas_rc_m3day / area_annulus_intake_m2
+End Property
+'Gas sureficial velocity
+Public Property Get vsg_tub_msec() As Double
+    vsg_tub_msec = 0.000011574 * q_gas_rc_m3day / area_annulus_tubing_m2
+End Property
+Public Property Get vsmix_msec() As Double
+    vsmix_msec = vsl_msec + vsg_msec
+End Property
+Public Property Get vsmix_tub_msec() As Double
+    vsmix_tub_msec = vsl_tub_msec + vsg_tub_msec
+End Property
+'Froude number
+Public Property Get n_Fr() As Double
+    n_Fr = vsmix_msec ^ 2 / (const_g * (d_cas_m - d_intake_m))
+End Property
+' число Рейнольдса
+Public Property Get n_Re() As Double
+    n_Re = rho_mix_kgm3 * vsmix_msec * d_h / mu_mix_Pasec
+End Property
+'determine flow pattern
+Public Property Get flow_pattern() As Integer
+    If (n_Fr >= 316 * lambda_liq ^ 0.302 Or n_Fr >= 0.5 * lambda_liq ^ -6.738) Then
+        flow_pattern = 2
+    Else
+        If (n_Fr <= 0.000925 * lambda_liq ^ -2.468) Then
+            flow_pattern = 0
+        Else
+            If (n_Fr <= 0.1 * lambda_liq ^ -1.452) Then
+                flow_pattern = 3
+            Else
+                flow_pattern = 1
+            End If
+        End If
+    End If
+End Property
+'Calculate terminal gas rise velosity
+Public Property Get v_inf_msec(Optional submodel As Integer = 0) As Double
+    Dim fp As Integer
+    Dim c As Double
+    Select Case submodel
+    
+    Case 0
+        fp = flow_pattern
+        If (fp = 0 Or fp = 1) Then
+            c = 1.53
+        Else
+            c = 1.41
+        End If
+    Case 1
+        fp = flow_pattern_1
+        If (fp = 2 Or fp = 1) Then
+            c = 1.53
+        Else
+            c = 1.41
+        End If
+    End Select
+    
+    v_inf_msec = c * (const_g * sigma_liq_Nm * (rho_liq_rc_kgm3 - rho_gas_rc_kgm3) / rho_liq_rc_kgm3 ^ 2) ^ 0.25
+End Property
+' Расчет естественной сепарации по Маркезу на основе упрощенной модели
+Public Function ksep_simplified_Marquez(ByVal qliq_rc_m3day As Double, _
+                                        ByVal q_gas_rc_m3day As Double)
+    'function calculates natural separation efficiency
+    'qliq_rc_m3day - liquid rate in situ conditions ( (m3/day))
+    'q_gas_rc_m3day - gas rate in situ conditions ((m3/day))
+    
+    Dim M As Double
+    Const a = -0.0093
+    Const B = 57.758
+    Const c = 34.4
+    Const d = 1.308
+    Const ST = 272
+    Const backst = 1 / 272
+    
+    Me.qliq_rc_m3day = qliq_rc_m3day
+    Me.q_gas_rc_m3day = q_gas_rc_m3day
+    
+    If (qliq_rc_m3day = 0) Or (d_intake_m = d_cas_m) Then
+        ksep_simplified_Marquez = 1
+        Exit Function
+    End If
+    
+    ' calculate separation efficienty
+    M = vsl_msec / v_inf_msec
+    If M > 13 Then
+        ksep_simplified_Marquez = 0
+        Exit Function
+    End If
+    ksep_work = ((1 + (a * B + c * M ^ d) / (B + M ^ d)) ^ ST + M ^ ST) ^ backst - M
+    ksep_average_cycle = ksep_work
+'    ksep_full_work = ksep_work
+    ksep_simplified_Marquez = ksep_work
+End Function
+' ============================================
+' Механистическая модель
+' ============================================
+Private Function friction_annulus_estimate(n_Re)
+    ' оценка коэффициента трения для концентрического расположения труб
+    Dim d_h As Double, k_D_h As Double, f_ca As Double, f_D_h As Double
+    Dim a_f As Double, b_f As Double, f_D_h1 As Double, f_D_h2 As Double
+    Dim i As Integer
+    
+    i = 0
+    d_h = d_cas_m - d_intake_m
+    k_D_h = d_intake_m / d_cas_m
+    
+    f_ca = 16 * (1 - k_D_h) ^ 2 / ((1 - k_D_h ^ 4) / (1 - k_D_h ^ 2) - (1 - k_D_h ^ 2) / Log(1 / k_D_h))
+    'Расчет коэффициента гидравлического трения
+    If n_Re <= 3000 Then
+        f_D_h = f_ca / n_Re
+    Else
+        a_f = 0.00000001
+        b_f = 1#
+        Do
+            f_D_h = (a_f + b_f) / 2
+            f_D_h1 = 1 / (f_D_h * (16 / f_ca) ^ (0.45 * Exp(-(n_Re - 3000) / 10 ^ 6))) ^ 0.5
+            f_D_h2 = 4 * Log10(n_Re * (f_D_h * (16 / f_ca) ^ (0.45 * Exp(-(n_Re - 3000) / 10 ^ 6))) ^ 0.5) - 0.4
+            If Abs(f_D_h1 - f_D_h2) > 0.0001 Then
+                 If f_D_h1 > f_D_h2 Then
+                    a_f = f_D_h
+                Else
+                    b_f = f_D_h
+                End If
+            Else
+                Exit Do
+            End If
+            
+            i = i + 1
+            If i > 100 Then
+                Exit Do
+                Debug.Print "warning friction_annulus_estimate  too many interations"
+            End If
+        Loop
+    End If
+    
+    friction_annulus_estimate = f_D_h
+End Function
+Public Function calc_li(Optional correl_type As Integer = 0, Optional submodel As Integer = 0)
+    Dim v_sg_ft As Double, l_i As Double, alpha_g As Double
+    Dim v_sl_ft As Double
+    Select Case correl_type
+        Case 0
+            ' interface characteristic length estimation based on TUALP data
+            v_sg_ft = vsg_msec / 0.3048
+            alpha_g = vsg_msec / (vsg_msec + v_inf_msec(submodel))
+            l_i = 3 * alpha_g / (71.617 * (1 - Exp(-2.364 * v_sg_ft))) * 0.0254 ' eq (5.45) from Marquez dissertation
+            ' comparing l_i from (5.45)  with experiment data from dissertation and with l_i applied
+            ' for two phase model (6.60) (6.59) and also with ksep estimation from simplified model
+            ' it looks like l_i value underestimated by factor 2
+            ' so here we apply correction for better agreement with simplified model
+            l_i = l_i * calibr_li
+        Case 1
+            If flow_pattern = 1 Then
+                v_sl_ft = vsl_msec / 0.3048
+                l_i = -0.1653 * (-0.0492 - Exp(-1.0476 * v_sl_ft)) * 0.0254
+            Else
+                v_sg_ft = vsg_msec / 0.3048
+                l_i = 0.036 * (2.364 ^ v_sg_ft) * v_sg_ft ^ 0.72 * 0.0254
+            End If
+    End Select
+    calc_li = l_i
+End Function
+' расчет dr_dz для траектории пузырька в горизонтальном сходящемся потоке жидкости
+Private Function dr_dz_(r_i As Double, _
+                        h_i As Double, _
+                        rp As Double, _
+                        rc As Double, _
+                        h_p As Double, _
+                        l_i As Double, _
+                        vr_sl_msec As Double)
+        Dim a_i As Double, b_i As Double, c_i As Double
+        a_i = 54 * mu_liq_Pasec / (l_i ^ 2 * (rho_liq_rc_kgm3 - rho_gas_rc_kgm3) * 9.81)
+        b_i = (rp + (h_i / h_p) * (rc - rp)) * vr_sl_msec
+        
+        c_i = (2 * l_i ^ 2 * rho_liq_rc_kgm3) / (9 * mu_liq_Pasec * r_i ^ 3) * b_i + 1 / r_i
+        dr_dz_ = -a_i * b_i * c_i
+End Function
+' расчет траектории пузырька на приеме ЭЦН для модели Маркеса Прадо
+Private Function calc_r_bubble_trajectory_annulus(h_start As Double, _
+                                                  r_start As Double)
+        
+    Dim dh As Double, dr As Double
+    Dim r_cas As Double, r_pump As Double, tan_B As Double
+    Dim h_i As Double, r_i As Double, ri_i As Double, dr_dz_i As Double, separation As Double
+    Dim ri_track As New CInterpolation
+    Dim b_track As New CInterpolation
+    Dim h_i_sol
+    
+    Dim i As Integer
+    i = 0
+    
+    r_cas = d_cas_m / 2
+    r_pump = d_intake_m / 2
+    
+    dh = h_intake_m / 20  ' определяем шаг интегрирования для траектории
+    dr = (r_cas - r_pump) / 100
+    
+    tan_B = (r_cas - r_pump) / h_intake_m  ' определяем треугольник поворота потока жидкости к приему ЭЦН
+    
+    'Начальные условия
+    h_i = h_start
+    r_i = r_start
+    
+    bbl_track.ClearPoints
+    b_track.ClearPoints
+    
+    bbl_track.AddPoint h_i, r_i
+    b_track.AddPoint h_i, r_i
+    ri_track.AddPoint h_i, r_cas - (h_intake_m - h_i) * tan_B
+       
+    If r_i > r_pump Then
+        If h_i > h_intake_m Then
+            h_i = h_intake_m
+            bbl_track.AddPoint h_i, r_i, True
+            b_track.AddPoint h_i, r_i, True
+            ri_track.AddPoint h_i, r_cas - (h_intake_m - h_i) * tan_B
+        End If
+    End If
+    
+    Do
+        'Расчет в i-том сечении
+        dr_dz_i = dr_dz_(r_i, h_i, r_pump, r_cas, h_intake_m, calc_li(submodel:=1), tan_B * vsl_msec)
+        ' подготовим условия для уменьшения шага интегрирования если r будет меняться слишком сильно
+        If Abs(dr_dz_i * dh) < dr Then
+            h_i = h_i - dh
+            r_i = r_i - dr_dz_i * dh
+        Else
+            h_i = h_i + dr / dr_dz_i
+            r_i = r_i + dr
+        End If
+        ri_i = r_cas - (h_intake_m - h_i) * tan_B ' оценим значение на диагонали
+        If r_i - ri_i < 0 Then
+            ' если траектория внутри треугольника - то продолжаем
+            If ri_i > r_cas Then Exit Do  ' но только если не ушли за границу скважины
+            bbl_track.AddPoint h_i, r_i
+            b_track.AddPoint h_i, r_i
+            ri_track.AddPoint h_i, ri_i
+        Else
+            ' если вышли из треугольника - то надо найти потоложение точки пересения на диагонали
+            b_track.AddPoint h_i, r_i
+            ri_track.AddPoint h_i, ri_i
+            h_i_sol = intersection(b_track, ri_track)
+            h_i = h_i_sol(1)
+            r_i = r_cas - (h_intake_m - h_i) * tan_B
+            bbl_track.AddPoint h_i, r_i, True
+            Exit Do
+        End If
+        ' на всякий случай заглушка для выхода из цикла
+        i = i + 1
+        If i > 1000 Then Err.Raise kErrNatSeparation, , "calc_r_bubble_trajectory_annulus iterations not finished"
+    Loop
+    ' добавим точку для красивого отображения
+    bbl_track.AddPoint h_intake_m - h_intake_m * 1.2, r_i
+    ' результат - радиус захвата пузырьков газа
+    calc_r_bubble_trajectory_annulus = r_i
+End Function
+' расчет траектории пузырька на приеме ЭЦН для модели ПКВ
+Private Function calc_r_bubble_trajectory_annulus_pkv(h_start As Double, r_start As Double, Optional sign As Integer = 1)
+    ' расчет траектории пузырька на приеме насоса для режима ПКВ
+    
+    Dim dh As Double, dr As Double
+    Dim r_cas As Double, r_pump As Double, tan_B1 As Double
+    Dim h_i As Double, r_i As Double, ri_i As Double, dr_dz_i As Double, separation As Double
+    
+    Dim ri_track2 As New CInterpolation
+    Dim ri_track1 As New CInterpolation
+    Dim b_track As New CInterpolation
+    
+    Dim h_i_e As Double
+    Dim h_i_sol
+    Dim i As Integer
+    i = 0
+    
+    ' определим внутренние переменные для удобства расчета
+    
+    r_cas = d_cas_m / 2
+    r_pump = d_intake_m / 2
+    
+    dh = h_intake_m / 20  ' определяем шаг интегрирования для траектории
+    dr = (r_cas - r_pump) / 100
+    ' определим угол нижнего треугольника в котором будет горизонтальный поток флюида из пласта
+    ' угол учитывает что у нас задан дебит жидкости из пласта
+    ' и горизонтальная скорость притока в прием насоса будет большая
+    ' с учетом того, что их затруба тоже что то притекает (равномерно по высоте перфорации)
+    tan_B1 = (r_cas - r_pump) / h_intake_m / pkv_ratio  ' нижний треугольник
+    
+    'Начальные условия
+    h_i = h_start
+    r_i = r_start
+    ' чистим промежуточные массивы, которые нужны для вычисления пересечений и вывода результатов
+    bbl_track.ClearPoints
+    b_track.ClearPoints
+    ' пишем стартовую точку в массивы траекторий
+    bbl_track.AddPoint h_i, r_i
+    b_track.AddPoint h_i, r_i
+    
+    ri_track2.AddPoint h_intake_m * pkv_ratio, r_cas
+    ri_track2.AddPoint h_intake_m, r_pump
+    
+    ri_track1.AddPoint h_intake_m * pkv_ratio, r_cas
+    ri_track1.AddPoint 0, r_pump
+    
+       
+    If r_i > r_pump Then
+        ' если стартовая точка не на границе насоса
+        If sign > 0 Then
+        ' если обратная трассировка
+        ' обратная трассировка только для нахождения Ксеп и всегда будет стартовать из одной точки сверху приема насоса
+        ' поэтому с корректировкой точек не заморачиваемся
+        Else
+        ' прямая трассировка будет использоваться для построения картинок
+        ' поэтому тут сделаем начальные точки красиво
+            If h_i < 0 Then
+                ' найдем точку на нижней границе треугольника - где будет поворот потока
+                h_i = ri_track1.FindMaxOneSolution(r_i)
+                bbl_track.AddPoint h_i, r_i, True
+                b_track.AddPoint h_i, r_i, True
+            End If
+        End If
+    End If
+    ' далее цикл расчета траектории - интегрирования уравнения движения пузырька
+    Do
+        'Расчет в i-том сечении
+        '
+        ' Внутри треугольников радиального потока скорости будут отличаться из за радиального схождения
+        ' потока к приему насоса. Причем скорость будет зависеть также от координаты h
+        ' поэтому находим далее для верхнего треугольника эквивалентную высоту в нижнем треугольнике где будет
+        ' такая же скорость жидкости.
+        If h_i < h_intake_m * pkv_ratio Then
+            h_i_e = h_i
+        Else
+            h_i_e = (h_intake_m - h_i) * pkv_ratio / (1 - pkv_ratio)
+        End If
+        dr_dz_i = dr_dz_(r_i, h_i_e, r_pump, r_cas, h_intake_m, calc_li(submodel:=1), tan_B1 * vsl_msec)
+        ' подготовим условия для уменьшения шага интегрирования если r будет меняться слишком сильно
+        If Abs(dr_dz_i * dh) < dr Then
+            h_i = h_i - dh * sign
+            r_i = r_i - dr_dz_i * dh * sign
+        Else
+            h_i = h_i + dr / dr_dz_i * sign
+            r_i = r_i + dr * sign
+        End If
+        
+        ri_i = ri_track1.getPoint(h_i)
+        
+        b_track.AddPoint h_i, r_i, True
+        
+        If sign > 0 Then
+            If r_i < ri_i Then
+                If r_i > r_cas Then
+                    r_i = r_cas
+                    Exit Do
+                End If
+            Else
+                h_i_sol = intersection(b_track, ri_track1)
+                h_i = h_i_sol(1)
+                r_i = ri_track1.getPoint(h_i)
+                If r_i > r_cas Then r_i = r_cas
+                bbl_track.AddPoint h_i, r_i, True
+                Exit Do
+            End If
+        Else
+            If r_i < r_pump Then
+                r_i = r_pump
+                h_i = b_track.FindMaxOneSolution(r_pump)
+                bbl_track.AddPoint h_i, r_i, True
+                Exit Do
+            End If
+            
+            If h_i > ri_track2.FindMaxOneSolution(r_i) Then
+                h_i_sol = intersection(b_track, ri_track2)
+                h_i = h_i_sol(1)
+                r_i = ri_track2.getPoint(h_i)
+                If r_i < r_pump Then
+                    r_i = r_pump
+                    h_i = b_track.FindMaxOneSolution(r_i)
+                End If
+                bbl_track.AddPoint h_i, r_i, True
+                If r_i > r_pump Then
+                    If vg_downflow_msec > 0 Then
+                        bbl_track.AddPoint h_intake_m * 1.2, r_i
+                    Else
+                        bbl_track.AddPoint h_intake_m, r_pump
+                    End If
+                End If
+                Exit Do
+            End If
+            
+            bbl_track.AddPoint h_i, r_i
+        End If
+        ' на всякий случай заглушка для выхода из цикла
+        i = i + 1
+        If i > 1000 Then Err.Raise kErrNatSeparation, , "calc_r_bubble_trajectory_annulus iterations not finished"
+    Loop
+    calc_r_bubble_trajectory_annulus_pkv = r_i
+End Function
+' расчет траектории пузырька на выходе из перфорации для модели реверсивного потока с ЭЦН ниже перфорации
+Private Function calc_h_bubble_trajectory_annulus(h_start As Double, r_start As Double, Optional sign As Integer = 1)
+    Dim dh As Double, dr As Double
+    Dim r_cas As Double, r_pump As Double, tan_B As Double
+    Dim h_i As Double, r_i As Double, ri_i As Double
+    Dim dr_dz_i As Double
+    Dim ri_track As New CInterpolation
+    Dim b_track As New CInterpolation
+    Dim h_i_sol
+    Dim j As Integer
+    
+    j = 0
+    
+    r_cas = d_cas_m / 2
+    r_pump = d_intake_m / 2
+    
+    dh = h_perf_m / 20  ' определяем шаг интегрирования для траектории
+    dr = (r_cas - r_pump) / 100
+    
+    tan_B = (r_cas - r_pump) / h_perf_m ' определяем треугольник поворота потока жидкости к приему ЭЦН
+            
+    'Начальные условия
+    h_i = h_start
+    r_i = r_start
+    
+    bbl_track.ClearPoints
+    b_track.ClearPoints
+    
+    bbl_track.AddPoint r_i, h_i
+    b_track.AddPoint h_i, r_i
+    ri_track.AddPoint h_i, r_pump + (h_perf_m - h_i) * tan_B
+    
+    Do
+        dr_dz_i = dr_dz_(r_i, h_i, r_pump, r_cas, h_perf_m, calc_li(submodel:=1), tan_B * vsl_msec)
+        
+        ' подготовим условия для уменьшения шага интегрирования если r будет меняться слишком сильно
+        If Abs(dr_dz_i * dh) < dr Then
+            h_i = h_i - dh * sign
+            r_i = r_i - dr_dz_i * dh * sign
+        Else
+            h_i = h_i + dr / dr_dz_i * sign
+            r_i = r_i + dr * sign
+        End If
+        
+        ri_i = r_pump + (h_perf_m - h_i) * tan_B
+        
+        b_track.AddPoint h_i, r_i
+        ri_track.AddPoint h_i, ri_i
+        If sign > 0 Then
+            j = j + 1
+            If r_i > r_cas Then
+                
+                bbl_track.AddPoint r_i, h_i
+                h_i = bbl_track.getPoint(r_cas)
+                Exit Do
+            End If
+            If h_i < 0 Then
+                h_i = 0
+                Exit Do
+            End If
+        Else
+            j = j + 1
+            
+            If h_i > h_perf_m And r_i - ri_i > 0 Then
+                h_i = h_perf_m
+                r_i = b_track.getPoint(h_perf_m)
+                ' для отрисовки траектории сохраним две точки учитывая вертикальность потока вне треугольника горизонтиального движения
+                bbl_track.AddPoint r_i, h_i, True
+                bbl_track.AddPoint r_i - 0.00001, h_perf_m * 1.2
+                Exit Do
+            End If
+            If r_i - ri_i < 0 Then
+                h_i_sol = intersection(b_track, ri_track)
+                h_i = h_i_sol(1)
+                ri_i = r_pump + (h_perf_m - h_i) * tan_B
+                r_i = ri_i
+                bbl_track.AddPoint r_i, h_i, True
+                ' для отрисовки проверим критерий того что газ может сбежать от потока
+                If vg_downflow_msec > 0 Then
+                    ' положительная скорость - значит газ может сбежать из потока
+                    bbl_track.AddPoint r_i - 0.00001, h_perf_m * 1.2 ' добавляем к радиусу небольшое число чтобы обеспечить отрисовку почти вертикальной линии
+                                                                     ' в Cinterpolation нельзя задать две точки с одним значением x
+                Else
+                    ' отрицательная скорость - значит газ сбежать не сможет
+                    bbl_track.AddPoint r_i - 0.00001, 0
+                End If
+                Exit Do
+            End If
+        End If
+        bbl_track.AddPoint r_i, h_i
+        
+        If j > 1000 Then Err.Raise kErrNatSeparation, , "calc_r_bubble_trajectory_annulus iterations not finished"
+    Loop
+    ' результат - высота перфорации из которой будут захвачены пузырьки газа
+    calc_h_bubble_trajectory_annulus = h_i
+End Function
+Private Property Get flow_pattern_1() As Integer
+    Dim f_D_h As Double
+    Dim d_crit As Double
+    Dim d_max As Double
+    Dim typeReg As String
+    Dim v_sg_bubble As Double
+    Dim v_sg_annular As Double
+    Dim v_sg_slug As Double
+    
+    f_D_h = friction_annulus_estimate(n_Re)
+    ' критического диаметра при котором поддерживается сферическая форма пузырька газа. Критический диаметр пузырька газа можно определить Brodkey (1967)
+    d_crit = (0.4 * sigma_liq_Nm / (9.81 * (rho_liq_rc_kgm3 - rho_gas_rc_kgm3))) ^ 0.5
+    
+    ' максимального диаметра стабильного пузырька при дисперсно-пузырьковом режиме течения
+    d_max = (0.725 + 4.15 * (vsg_msec / vsmix_msec) ^ 0.5) * (sigma_liq_Nm / rho_liq_rc_kgm3) ^ 0.6 * (2 * vsmix_msec ^ 3 * f_D_h / d_h) ^ (-0.4)
+    If d_crit > d_max Then
+        ' Barnea et al. (1985) предложили условие перехода пузырькового режима течения в дисперсно-пузырьковый
+        flow_pattern_1 = 2
+        typeReg = "Пробковый"
+    Else
+        'уравнение приведенной скорости газа на границе перехода от пузырькового режима течения к пробковому для концентрического положения труб колонны и НКТ
+        v_sg_bubble = vsl_msec / 4 + 0.306 * (9.81 * (rho_liq_rc_kgm3 - rho_gas_rc_kgm3) * sigma_liq_Nm / rho_liq_rc_kgm3 ^ 2) ^ 0.25
+    
+        If vsg_msec < v_sg_bubble Then
+            flow_pattern_1 = 1
+            typeReg = "Пузырьковый"
+        Else
+            v_sg_annular = 3.1 * (sigma_liq_Nm * 9.81 * (rho_liq_rc_kgm3 - rho_gas_rc_kgm3) / rho_gas_rc_kgm3 ^ 2) ^ 0.25
+    
+            If vsg_msec > v_sg_annular Then
+                flow_pattern_1 = 4
+                typeReg = "Кольцевой"
+            Else
+                v_sg_slug = 1.083 * vsl_msec + 0.796 * (9.81 * (rho_liq_rc_kgm3 - rho_gas_rc_kgm3) * sigma_liq_Nm / rho_liq_rc_kgm3 ^ 2) ^ 0.25
+    
+                If vsg_msec < v_sg_slug Then
+                    flow_pattern_1 = 2
+                    typeReg = "Пробковый"
+                Else
+                    flow_pattern_1 = 3
+                    typeReg = "Дисперснопузырьковый"
+                End If
+            End If
+        End If
+    End If
+    
+End Property
+Public Function ksep_mechanistic_Marquez(ByVal qliq_rc_m3day As Double, _
+                                         ByVal q_gas_rc_m3day As Double) As Variant
+                                        
+'qliq_rc_m3day - дебит жидкости в рабочих условиях, м3/сут
+'q_gas_rc_m3day - дебит свободного газа в рабочих условиях, м3/сут
+    
+    Me.qliq_rc_m3day = qliq_rc_m3day
+    Me.q_gas_rc_m3day = q_gas_rc_m3day
+    
+    ' если газа нет, то и сепарации нет
+    If q_gas_rc_m3day < 0.001 Then
+        ksep_work = 0
+        ksep_average_cycle = ksep_work
+'        ksep_full_work = ksep_work
+        ksep_mechanistic_Marquez = 0
+        Exit Function
+    End If
+    Dim ri As Double, rp As Double, rc As Double
+    rc = d_cas_m / 2
+    rp = d_intake_m / 2
+    ri = calc_r_bubble_trajectory_annulus(h_intake_m, d_intake_m / 2)
+    
+    ksep_work = ((rc ^ 2 - ri ^ 2) / (rc ^ 2 - rp ^ 2))
+    ksep_average_cycle = ksep_work
+'    ksep_full_work = ksep_work
+    
+    ksep_mechanistic_Marquez = ksep_work
+End Function
+Public Function ksep_mechanistic_pkv(ByVal qliq_rc_m3day As Double, _
+                                     ByVal q_gas_rc_m3day As Double) As Variant
+                                        
+'qliq_rc_m3day - дебит жидкости в рабочих условиях, м3/сут
+'q_gas_rc_m3day - дебит свободного газа в рабочих условиях, м3/сут
+    
+    Me.qliq_rc_m3day = qliq_rc_m3day
+    Me.q_gas_rc_m3day = q_gas_rc_m3day
+    
+    ' если газа нет, то и сепарации нет
+    If q_gas_rc_m3day < 0.001 Then
+        ksep_work = 0
+        ksep_average_cycle = ksep_work
+'        ksep_full_work = ksep_work
+        ksep_mechanistic_pkv = ksep_work
+        Exit Function
+    End If
+'    Dim vg_lim As Double
+'    Dim alpha As Double
+    Dim ri As Double, rp As Double, rc As Double
+    rc = d_cas_m / 2
+    rp = d_intake_m / 2
+    ri = calc_r_bubble_trajectory_annulus_pkv(h_intake_m, d_intake_m / 2)
+'    vg_lim = 0.2
+    If vg_downflow_msec > 0 Then
+        ' оценим сепарацию газа из потока из пласта (мгновенная сепарация)
+        ksep_work = ((rc ^ 2 - ri ^ 2) / (rc ^ 2 - rp ^ 2))
+        ' оценим сепарацию среднюю
+        'ksep_average = (ksep + 1 / pkv_ratio) / (1 + 1 / pkv_ratio)
+'        ksep_full_work = (ksep_work * pkv_ratio + 1 - pkv_ratio)
+        ksep_average_cycle = (ksep_work * pkv_ratio + 1 - pkv_ratio)
+    Else
+        ' если нисходящий поток из затруба затянет с собой газ
+        ' никакой сепарации газа из потока из пласта не будет
+        ksep_work = 0
+        If vg_downflow_tub_msec > 0 Then
+'            ksep_full_work = (ksep_work * pkv_ratio + 1 - pkv_ratio)
+            ksep_average_cycle = (ksep_work * pkv_ratio + 1 - pkv_ratio)
+        Else
+            ' небольшое значение здесь символизирует, что не весь газ получится засосать
+            ' в насос при включении насоса. Но точное значение оценить пока трудно (да вроде и незачем)
+'            ksep_full_work = 0.05
+            ksep_average_cycle = 0.05
+        End If
+        ' дополнительно снаружи надо будет учесть, что жидкость
+        ' из затруба может принести свой газ
+    End If
+  
+    ksep_mechanistic_pkv = Array(ksep_work, ksep_average_cycle)
+End Function
+Public Function ksep_mechanistic_Marquez_reverse(ByVal qliq_rc_m3day As Double, _
+                                         ByVal q_gas_rc_m3day As Double) As Variant
+                                        
+'qliq_rc_m3day - дебит жидкости в рабочих условиях, м3/сут
+'q_gas_rc_m3day - дебит свободного газа в рабочих условиях, м3/сут
+    
+    Dim h_i As Double
+    Dim vg_lim As Double
+    Dim alpha As Double
+    
+    Me.qliq_rc_m3day = qliq_rc_m3day
+    Me.q_gas_rc_m3day = q_gas_rc_m3day
+    
+    ' если газа нет, то и сепарации нет
+    If q_gas_rc_m3day < 0.001 Then
+        ksep_work = 0
+        ksep_average_cycle = ksep_work
+'        ksep_full_work = ksep_work
+        
+        ksep_mechanistic_Marquez_reverse = ksep_work
+        Exit Function
+    End If
+    h_i = calc_h_bubble_trajectory_annulus(h_perf_m, d_intake_m / 2)
+    
+    ksep_work = (h_perf_m - h_i) / h_perf_m
+    vg_lim = 0.1
+    
+    If ksep_work > 0 Then
+        ' проверим какая будет скорость газа увлкаемая потоком вниз
+        ' если газ может убежать из потока, то сепарация будет полная
+        ' вниз пойдет дегазированная смесь
+        
+        ' поскольку оценка абсолютной скорости газа сомнительна с теоретической точки зрения
+        ' размашем ее в консервативную сторону на величину bg_lim (занизим величину ксеп)
+        ' и сгладим итоговую зависимость от дебита жидкости
+        
+        If vg_downflow_msec > vg_lim Then ksep_work = 1
+        If vg_downflow_msec < vg_lim And vg_downflow_msec > 0 Then
+            alpha = (vg_lim - vg_downflow_msec) / vg_lim '/ 2
+            ksep_work = (1 - alpha) + ksep_work * alpha
+        End If
+    End If
+    
+    ksep_mechanistic_Marquez_reverse = ksep_work
+        ksep_average_cycle = ksep_work
+'        ksep_full_work = ksep_work
+End Function
+Public Function build_bubble_tracks_mechanistic_Marquez(ByVal qliq_rc_m3day As Double, _
+                                                        ByVal q_gas_rc_m3day As Double)
+On Error Resume Next
+    Me.qliq_rc_m3day = qliq_rc_m3day
+    Me.q_gas_rc_m3day = q_gas_rc_m3day
+    Dim dout As New Dictionary
+    Dim ri As Double, rp As Double, rc As Double
+    rc = d_cas_m / 2
+    rp = d_intake_m / 2
+    
+    Dim i As Integer
+    For i = 1 To 4
+        ri = calc_r_bubble_trajectory_annulus(h_intake_m * 1.2, d_intake_m / 2 + (d_cas_m - d_intake_m) / 2 * i / 5)
+        dout("n" & str(i)) = bbl_track.ClonePointsToNum(15).getDict(decim_out:=6)
+    Next i
+    For i = 1 To 4
+        ri = calc_r_bubble_trajectory_annulus(h_intake_m * i / 4, d_intake_m / 2)
+        dout("n" & str(i + 4)) = bbl_track.ClonePointsToNum(15).getDict(decim_out:=6)
+    Next i
+    build_bubble_tracks_mechanistic_Marquez = ConvertToJson(dout)
+End Function
+Public Function build_bubble_tracks_mechanistic_Marquez_reverse(ByVal qliq_rc_m3day As Double, _
+                                                                ByVal q_gas_rc_m3day As Double)
+On Error Resume Next
+    Me.qliq_rc_m3day = qliq_rc_m3day
+    Me.q_gas_rc_m3day = q_gas_rc_m3day
+    Dim dout As New Dictionary
+    Dim ri As Double, rp As Double, rc As Double
+    rc = d_cas_m / 2
+    rp = d_intake_m / 2
+    
+    Dim i As Integer
+    For i = 1 To 8
+        ri = calc_h_bubble_trajectory_annulus(h_perf_m * i / 9, d_cas_m / 2, -1)
+        dout("n" & str(i)) = bbl_track.ClonePointsToNum(15).getDict(decim_out:=6)
+    Next i
+    build_bubble_tracks_mechanistic_Marquez_reverse = ConvertToJson(dout)
+End Function
+Public Function build_bubble_tracks_mechanistic_pkv(ByVal qliq_rc_m3day As Double, _
+                                                    ByVal q_gas_rc_m3day As Double)
+On Error Resume Next
+    Me.qliq_rc_m3day = qliq_rc_m3day
+    Me.q_gas_rc_m3day = q_gas_rc_m3day
+    Dim dout As New Dictionary
+    Dim ri As Double, rp As Double, rc As Double
+    rc = d_cas_m / 2
+    rp = d_intake_m / 2
+    
+    Dim i As Integer
+    For i = 1 To 8
+        ri = calc_r_bubble_trajectory_annulus_pkv(-h_intake_m * 0.2, d_intake_m / 2 + (d_cas_m - d_intake_m) / 2 * i / 9, -1)
+        dout("n" & str(i)) = bbl_track.ClonePointsToNum(15).getDict(decim_out:=6)
+    Next i
+    build_bubble_tracks_mechanistic_pkv = ConvertToJson(dout)
+End Function
+Public Sub init_from_values( _
+                        ByVal d_intake_m As Double, _
+                        ByVal d_cas_m As Double, _
+                        ByVal q_liq_rc_m3day As Double, _
+                        ByVal q_gas_rc_m3day As Double, _
+                        ByVal sigma_liq_Nm As Double, _
+                        ByVal rho_liq_rc_kgm3 As Double, _
+                        ByVal rho_gas_rc_kgm3 As Double, _
+                        Optional ByVal mu_liq_rc_cP As Double = 1, _
+                        Optional ByVal mu_gas_rc_cP As Double = 0.001, _
+                        Optional hintake_m As Double = 0.1, _
+                        Optional hperf_m As Double = 0.1, _
+                        Optional calibr_li As Double = 2, _
+                        Optional calibr_st As Double = 1, _
+                        Optional pkv_ratio As Double = 0, _
+                        Optional d_tub_m As Double = 0.073)
+        Me.d_intake_m = d_intake_m
+        Me.d_cas_m = d_cas_m
+        Me.sigma_liq_Nm = sigma_liq_Nm * calibr_st
+        Me.rho_liq_rc_kgm3 = rho_liq_rc_kgm3
+        Me.rho_gas_rc_kgm3 = rho_gas_rc_kgm3
+        Me.mu_gas_cP = mu_gas_rc_cP
+        Me.mu_liq_cP = mu_liq_rc_cP
+        Me.h_intake_m = hintake_m
+        Me.h_perf_m = hperf_m
+        Me.calibr_li = calibr_li
+        Me.pkv_ratio = pkv_ratio
+        Me.d_tub_m = d_tub_m
+        
+        Me.qliq_rc_m3day = q_liq_rc_m3day
+        Me.q_gas_rc_m3day = q_gas_rc_m3day
+End Sub
+Public Function get_result_dict()
+                Dim dout As New Dictionary
+                dout.Add "ksep", ksep_work
+                dout.Add "flow_pattern", flow_pattern
+                dout.Add "vsl_msec", vsl_msec
+                dout.Add "vsg_msec", vsg_msec
+                dout.Add "v_inf_msec", v_inf_msec
+                dout.Add "vg_downflow_msec", vg_downflow_msec
+                dout.Add "li m", calc_li(0, 1)
+                If pkv_ratio > 0 Then
+                    dout.Add "ksep average", ksep_average_cycle
+'                    dout.Add "ksep_full_work", ksep_full_work
+                    dout.Add "pkv_ratio", pkv_ratio
+                    dout.Add "vsl_ann_intake_msec", -vsl_msec * (1 / pkv_ratio - 1)
+                    dout.Add "vsg_ann_intake_msec", vsg_msec * (1 / pkv_ratio - 1) * IIf(vg_downflow_msec > 0, 1, -1)
+                    dout.Add "vsl_ann_tub_msec", -vsl_tub_msec * (1 / pkv_ratio - 1)
+                    dout.Add "vsg_ann_tub_msec", vsg_tub_msec * (1 / pkv_ratio - 1) * IIf(vg_downflow_msec > 0, 1, -1)
+                    dout.Add "vg_downflow_tub_msec", vg_downflow_tub_msec
+                End If
+                Set get_result_dict = dout
+End Function
+Public Function get_result_array()
+    Dim res, res_desc
+    If pkv_ratio > 0 Then
+        res = Array(ksep_work, flow_pattern, calc_li(0, 1), v_inf_msec, vsl_msec, vsg_msec, vg_downflow_msec, ksep_average_cycle, _
+                    pkv_ratio, -vsl_msec * (1 / pkv_ratio - 1), vsg_msec * (1 / pkv_ratio - 1) * IIf(vg_downflow_msec > 0, 1, -1), _
+                    -vsl_tub_msec * (1 / pkv_ratio - 1), vsg_tub_msec * (1 / pkv_ratio - 1) * IIf(vg_downflow_msec > 0, 1, -1), vg_downflow_tub_msec)
+        res_desc = Array("ksep", "flow regime", "li", "v_ooz", "vsl", "vsg", "vg_downflow", "ksep_average_cycle", _
+                    "pkv_ratio", "vsl_ann_intake_msec", "vsg_ann_intake_msec", "vsl_ann_tub_msec", "vsg_ann_tub_msec", "vg_downflow_tub_msec")
+    Else
+        If h_perf_m > 0 Then
+            res = Array(ksep_work, flow_pattern, calc_li(0, 1), v_inf_msec, vsl_msec, vsg_msec, vg_downflow_msec)
+            res_desc = Array("ksep", "flow regime", "li", "v_ooz", "vsl", "vsg", "vg_downflow")
+        Else
+            res = Array(ksep_work, flow_pattern, calc_li(0, 1), v_inf_msec, vsl_msec, vsg_msec)
+            res_desc = Array("ksep", "flow regime", "li", "v_ooz", "vsl", "vsg")
+        End If
+    End If
+    get_result_array = Array(res, res_desc)
+End Function
+Public Function get_result(out As Integer)
+        Select Case out
+            Case 0
+                get_result = get_result_array()
+            Case 1
+                get_result = ksep_work
+            Case 2
+                get_result = ConvertToJson(get_result_dict())
+            Case Else
+                get_result = "specify out_num"
+        End Select
+End Function
+

@@ -1,7 +1,7 @@
 '=======================================================================================
-'Unifloc 7.38 aspo                               khabibullinra@gmail.com
+'Unifloc 7.50 year 2024                             khabibullinra@gmail.com
 'Petroleum engineering calculations modules (macroses)
-'2000 - 2022
+'2000 - 2023
 '
 '=======================================================================================
 ' функции дл€ работы с кривыми из интерфейса Excel
@@ -22,10 +22,10 @@ Public Function crv_interpolation(x_points, y_points, x_val, _
 '             диапазоны могут быть заданы как в строках,
 '             так и в столбцах
 ' type_interpolation - тип интерпол€ции
-'             0 - линейна€ интерпол€ци€
-'             1 - кубическа€ интерпол€ци€
+'             0 - линейна€,
+'             1 - кубическа€,
 '             2 - интерпол€ци€ јкима (выбросы)
-'                 https://en.wikipedia.org/wiki/Akima_spline
+'                 https://en.wikipedia.org/wiki/Akima_spline,
 '             3 - кубический сплайн  атмулла –ома
 '                 https://en.wikipedia.org/wiki/Cubic_Hermite_spline
 ' результат

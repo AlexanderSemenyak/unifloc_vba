@@ -1,13 +1,14 @@
 '=======================================================================================
-'Unifloc 7.38 aspo                                    khabibullinra@gmail.com
+'Unifloc 7.50 year 2024                                  khabibullinra@gmail.com
 'Petroleum engineering calculations modules (macroses)
-'2000 - 2022
+'2000 - 2023
 '
 '=======================================================================================
 ' constant definition module and some usefull functions
 Option Explicit
-Public Const const_unifloc_version = "7.38"
+Public Const const_unifloc_version = "7.50"
 Public Const esp_db_name = "\ESP_json.db"
+ 
 ' only database as global variable here
 ' in order to reduce db file read
 Public ESP_base_dictionary As Dictionary
@@ -17,6 +18,7 @@ Public Const prm_show_log                   As String = "show_log"
 Public Const prm_show_info                  As String = "show_info"
 Public Const prm_num_value                  As String = "num_value"
 Public Const prm_show_array                 As String = "show_array"
+Public Const prm_show_json                  As String = "show_json"
 Public Const prm_show_all                   As String = "show_all"
 Public Const prm_pipe_calibr_grav           As String = "pipe_calibr_grav"
 Public Const prm_pipe_calibr_fric           As String = "pipe_calibr_fric"
@@ -189,13 +191,14 @@ Public Const const_MaxSegmLen = 100
 Public Const const_n_n = 20
 Public Const const_MaxdP = 10
 Public Const const_minPpipe_atma = 0.9
-Public Const const_pressure_tolerance = 0.01
+Public Const const_decimal_output = 3
+Public Const const_pressure_tolerance = 0.0051
 ' эта константа используется при интегрировании трубы
 ' попытка увеличить точность может при определенных обстоятельствах привести к тому
 ' что расчет по корреляции Ансари не будет сходиться из-за скачкой градиента давления 13.09.2021
 ' следует обращаться осторожно с этими параметрами
 Public Const const_num_decimal_out = 3
-Public Const const_well_P_tolerance = 0.05     ' допустимая погрешность при расчете забойного давления в скважине
+Public Const const_well_P_tolerance = 0.01     ' допустимая погрешность при расчете забойного давления в скважине
 Public Const const_P_difference = 0.0001       ' допустимая погрешность при сравнении (в основном) давлений
 Public Const ang_max = 5
 Public Const const_OutputCurveNumPoints = 50
@@ -222,6 +225,7 @@ Public Const kErrCInterpolation = 711 + vbObjectError
 Public Const kErrTester = 712 + vbObjectError
 Public Const kErrBisection = 713 + vbObjectError
 Public Const kreadJsonError = 714 + vbObjectError
+Public Const kErrNatSeparation = 715 + vbObjectError
 Public Const sDELIM As String = vbNewLine
 Public Const MinCountPoints_calc_pwf_pcas_hdyn_atma = 5
 Public Const root3 = 3 ^ 0.5
@@ -316,11 +320,11 @@ Public Type MOTOR_DATA
     Mshaft_Nm As Double     ' torque on the shaft - mechanical
     load_d As Double        ' motor load
     eff_full_d As Double
-    cable_dU_V As Double
-    U_trans_high_V As Double
+'    cable_dU_V As Double
+'    U_trans_high_V As Double
     power_fact_kW As Double
     power_CS_calc_W As Double        ' мощность на входе в станцию управления (с учетом корректировки) факт
-    power_CS_teor_calc_W As Double   ' мощность на входе в станцию управления  расчетная без корретировки
+    power_CS_teor_calc_W As Double   ' мощность на входе в станцию управления  расчетная без корректировки
 End Type
 Public Type CABLE_DATA
     type_num As Integer    ' номер кабеля todo сделать базу кабелей
@@ -353,7 +357,7 @@ Public Type ESP_PARAMS
      rate_points() As Double
      power_points() As Double
      eff_points() As Double
-     
+      
      height_stage_m As Double        ' примерная высота ступени
      d_od_m As Double                ' внешний диаметр ЭЦН
      d_motor_od_m As Double         ' внешний диаметр ПЭД
@@ -436,6 +440,10 @@ Public Type PTQ_LIST
     p() As Double
     t() As Double
     val() As Double
+    ql() As Double
+    fw() As Double
+    rp() As Double
+    qg() As Double
     len As Integer
 End Type
 Dim lm As New CLogger           ' лог который накапливает все сообщения. поддерживает сохранение сообщений в файл
@@ -469,28 +477,6 @@ End Function
 '=========================================================================================
 'types support functions
 '=========================================================================================
-' flow parameter setting function in the pipe or well
-Public Function set_calc_flow_param( _
-                Optional ByVal calc_along_coord As Boolean = False, _
-                Optional ByVal flow_along_coord As Boolean = False, _
-                Optional ByVal hcor As H_CORRELATION = Ansari, _
-                Optional ByVal temp_method As TEMP_CALC_METHOD = StartEndTemp, _
-                Optional ByVal length_gas_m As Double = 0, _
-                Optional ByVal start_length_gas_m As Double = 0) As PARAMCALC
-' calc_along_coord - calculation direction flag
-' flow_along_coord - flow direction relative to coordinate
-' hcor             - hydraulic correlation selector
-' temp_method      - temperature method selector
-' length_gas_m     - boundary of gas correlation application in flow
-    Dim prm As PARAMCALC
-    prm.calc_along_coord = calc_along_coord
-    prm.flow_along_coord = flow_along_coord
-    prm.correlation = hcor
-    prm.temp_method = temp_method
-    prm.length_gas_m = length_gas_m
-    prm.start_length_gas_m = start_length_gas_m
-    set_calc_flow_param = prm
-End Function
 Public Function sum_PT(PT1 As PTtype, PT2 As PTtype) As PTtype
     sum_PT.p_atma = PT1.p_atma + PT2.p_atma
     sum_PT.t_C = PT1.t_C + PT2.t_C
@@ -576,7 +562,10 @@ err1:
 End Function
 '=============== array manipulation functions =========================
 Public Function array_from_range(var_input, _
-                                Optional transpose As Boolean = False)
+                            Optional transpose As Boolean = False, _
+                            Optional key_crv As String = "", _
+                            Optional key_x As String = "x", _
+                            Optional key_y As String = "y")
 ' return array from range or from array or from number
     Dim ar() As Variant
     Dim rng As range
@@ -591,7 +580,20 @@ On Error GoTo err1:
     done = False
     
     If VarType(var_input) = vbString Then
-        If Mid(var_input, 1, 1) = "[" Then Set var_input = ParseJson(var_input)
+        If Mid(var_input, 1, 1) = "[" Then
+            Set var_input = ParseJson(var_input)
+        ElseIf Mid(var_input, 1, 1) = "{" Then
+            Dim dict As Dictionary
+            Set dict = ParseJson(var_input)
+            Set dict = dict(key_crv)
+            ReDim ar(1 To dict(key_x).Count, 1 To 2)
+            For i = 1 To dict(key_x).Count
+                ar(i, 1) = dict(key_x).Item(i)
+                ar(i, 2) = dict(key_y).Item(i)
+            Next i
+            
+            var_input = ar
+        End If
     End If
     
     If (TypeOf var_input Is range) Then
@@ -691,14 +693,17 @@ End Function
 Public Function array_num_from_range(var_input, _
                             Optional remove_zeros As Boolean = False, _
                             Optional remove_only_rows As Boolean = False, _
-                            Optional transpose As Boolean = False)
+                            Optional transpose As Boolean = False, _
+                            Optional key_crv As String = "", _
+                            Optional key_x As String = "x", _
+                            Optional key_y As String = "y")
     Dim ar() As Variant
     Dim ard() As Double
     Dim ard2() As Double
     Dim val As Double
     Dim i As Integer, j As Integer
     
-    ar = array_from_range(var_input, transpose)
+    ar = array_from_range(var_input, transpose, key_crv, key_x, key_y)
     
 On Error GoTo err1:
     ReDim ard(1 To (UBound(ar, 1) - LBound(ar, 1) + 1), 1 To (UBound(ar, 2) - LBound(ar, 2) + 1))
@@ -775,7 +780,7 @@ Public Function array1d_from_range(var_input, _
     Dim rng As range
     Dim i As Integer
     Dim j As Integer
-    Dim K As Integer
+    Dim k As Integer
     Dim num As Integer
 On Error GoTo err1:
     If num_only And no_zero Then
@@ -787,11 +792,11 @@ On Error GoTo err1:
     End If
     num = (UBound(ar, 1) - LBound(ar, 1) + 1) * (UBound(ar, 2) - LBound(ar, 2) + 1)
     ReDim arout(1 To num)
-    K = 1
+    k = 1
     For i = LBound(ar, 1) To UBound(ar, 1)
         For j = LBound(ar, 2) To UBound(ar, 2)
-            arout(K) = ar(i, j)
-            K = K + 1
+            arout(k) = ar(i, j)
+            k = k + 1
         Next
     Next
     array1d_from_range = arout
@@ -874,16 +879,16 @@ Public Function array_join(arr_in As Variant)
     Dim arr_out As Variant
     Dim num_rows As Integer
     Dim num_cols As Integer
-    Dim L As Integer, U As Integer
+    Dim l As Integer, U As Integer
     Dim i As Integer, j As Integer
-    L = LBound(arr_in)
+    l = LBound(arr_in)
     U = UBound(arr_in)
-    num_cols = UBound(arr_in(L)) - LBound(arr_in(L)) + 1
+    num_cols = UBound(arr_in(l)) - LBound(arr_in(l)) + 1
     num_rows = UBound(arr_in) - LBound(arr_in) + 1
     ReDim arr_out(1 To num_rows, 1 To num_cols)
     For i = 1 To num_rows
         For j = 1 To num_cols
-            arr_out(i, j) = arr_in(i - 1 + L)(j - 1 + L)
+            arr_out(i, j) = arr_in(i - 1 + l)(j - 1 + l)
         Next j
     Next i
     array_join = arr_out
@@ -922,62 +927,125 @@ err1:
 End Function
 ' чтение исходных данных в виде списков
 Public Sub read_PTQ(ptq As PTQ_LIST, feed, p, t, log_, _
-                    Optional ksep = -1#)
+                     ByVal val1, _
+                     ByVal q_liq_sm3day, _
+                     ByVal fw_perc, _
+                     ByVal rp_m3m3, _
+                     ByVal q_gas_free_sm3day _
+                    )
     Dim M As Integer
-    Dim N As Integer
+    Dim n As Integer
     Dim i As Integer
     Dim len_feed As Integer
     Dim len_p As Integer
     Dim len_t As Integer
     Dim len_ksep As Integer
+    Dim len_ql As Integer
+    Dim len_fw As Integer
+    Dim len_rp As Integer
+    Dim len_qg As Integer
+    
 ' здесь читаем и причесываем потенциально списочные входных данных расчетных функций
     With ptq
          ' определяем что на входе - один поток или вектор потоков и складываем все в коллекцию
         .feed = parse_feed_list(feed)
         .p = parse_list(p)
         .t = parse_list(t)
-        .val = parse_list(ksep)
+        .val = parse_list(val1)
+        .ql = parse_list(q_liq_sm3day)
+        .fw = parse_list(fw_perc)
+        .rp = parse_list(rp_m3m3)
+        .qg = parse_list(q_gas_free_sm3day)
+        
         len_feed = UBound(.feed) - LBound(.feed) + 1
         len_p = UBound(.p) - LBound(.p) + 1
         len_t = UBound(.t) - LBound(.t) + 1
         len_ksep = UBound(.val) - LBound(.val) + 1
+        len_ql = UBound(.ql) - LBound(.ql) + 1
+        len_fw = UBound(.fw) - LBound(.fw) + 1
+        len_rp = UBound(.rp) - LBound(.rp) + 1
+        len_qg = UBound(.qg) - LBound(.qg) + 1
         
         'далее проверим что длины были везде одинаковые
-        If len_feed <> len_p Or len_feed <> len_t Or len_feed <> len_ksep Then
+        If len_feed <> len_p Or _
+           len_feed <> len_t Or _
+           len_feed <> len_ql Or _
+           len_feed <> len_fw Or _
+           len_feed <> len_rp Or _
+           len_feed <> len_qg Or _
+           len_feed <> len_ksep Then
         ' надо выровнять
+        
             M = MaxInt(len_feed, len_p)
             M = MaxInt(M, len_t)
             M = MaxInt(M, len_ksep)
+            M = MaxInt(M, len_ql)
+            M = MaxInt(M, len_fw)
+            M = MaxInt(M, len_rp)
+            M = MaxInt(M, len_qg)
+            
             If len_feed < M Then
-                N = UBound(.feed)
-                If N > 1 Then log_.add_msg "warning: input list feed length > 1 but less that max length"
+                n = UBound(.feed)
+                If n > 1 Then log_.add_msg "warning: input list feed length > 1 but less that max length"
                 ReDim Preserve .feed(1 To M)
-                For i = N + 1 To M
-                    .feed(i) = .feed(N)
+                For i = n + 1 To M
+                    .feed(i) = .feed(n)
                 Next i
             End If
             If len_p < M Then
-                N = UBound(.p)
-                If N > 1 Then log_.add_msg "warning: input list p length > 1 but less that max length"
+                n = UBound(.p)
+                If n > 1 Then log_.add_msg "warning: input list p length > 1 but less that max length"
                 ReDim Preserve .p(1 To M)
-                For i = N + 1 To M
-                    .p(i) = .p(N)
+                For i = n + 1 To M
+                    .p(i) = .p(n)
                 Next i
             End If
             If len_t < M Then
-                N = UBound(.t)
-                If N > 1 Then log_.add_msg "warning: input list t length > 1 but less that max length"
+                n = UBound(.t)
+                If n > 1 Then log_.add_msg "warning: input list t length > 1 but less that max length"
                 ReDim Preserve .t(1 To M)
-                For i = N + 1 To M
-                    .t(i) = .t(N)
+                For i = n + 1 To M
+                    .t(i) = .t(n)
                 Next i
             End If
             If len_ksep < M Then
-                N = UBound(.val)
-                If N > 1 Then log_.add_msg "warning: input list ksep length > 1 but less that max length"
+                n = UBound(.val)
+                If n > 1 Then log_.add_msg "warning: input list ksep length > 1 but less that max length"
                 ReDim Preserve .val(1 To M)
-                For i = N + 1 To M
-                    .val(i) = .val(N)
+                For i = n + 1 To M
+                    .val(i) = .val(n)
+                Next i
+            End If
+            If len_ql < M Then
+                n = UBound(.ql)
+                If n > 1 Then log_.add_msg "warning: input list ql length > 1 but less that max length"
+                ReDim Preserve .ql(1 To M)
+                For i = n + 1 To M
+                    .ql(i) = .ql(n)
+                Next i
+            End If
+            If len_fw < M Then
+                n = UBound(.fw)
+                If n > 1 Then log_.add_msg "warning: input list fw length > 1 but less that max length"
+                ReDim Preserve .fw(1 To M)
+                For i = n + 1 To M
+                    .fw(i) = .fw(n)
+                Next i
+            End If
+            If len_rp < M Then
+                n = UBound(.rp)
+                If n > 1 Then log_.add_msg "warning: input list rp length > 1 but less that max length"
+                ReDim Preserve .rp(1 To M)
+                For i = n + 1 To M
+                    .rp(i) = .rp(n)
+                Next i
+            End If
+            If len_qg < M Then
+                n = UBound(.qg)
+                If n > 1 Then log_.add_msg "warning: input list qg length > 1 but less that max length"
+                ReDim Preserve .qg(1 To M)
+                For i = n + 1 To M
+                    .qg(i) = .qg(n)
                 Next i
             End If
         End If
@@ -985,7 +1053,18 @@ Public Sub read_PTQ(ptq As PTQ_LIST, feed, p, t, log_, _
         len_p = UBound(.p) - LBound(.p) + 1
         len_t = UBound(.t) - LBound(.t) + 1
         len_ksep = UBound(.val) - LBound(.val) + 1
-        If len_feed <> len_p And len_feed <> len_t Then
+        len_ql = UBound(.ql) - LBound(.ql) + 1
+        len_fw = UBound(.fw) - LBound(.fw) + 1
+        len_rp = UBound(.rp) - LBound(.rp) + 1
+        len_qg = UBound(.qg) - LBound(.qg) + 1
+        
+         If len_feed <> len_p Or _
+           len_feed <> len_t Or _
+           len_feed <> len_ql Or _
+           len_feed <> len_fw Or _
+           len_feed <> len_rp Or _
+           len_feed <> len_qg Or _
+           len_feed <> len_ksep Then
             Err.Raise 1000
         End If
         .len = len_feed
@@ -996,6 +1075,12 @@ Public Sub init_ptq(ptq As PTQ_LIST, ptq_from As PTQ_LIST)
     ReDim ptq.p(LBound(ptq_from.p) To UBound(ptq_from.p))
     ReDim ptq.t(LBound(ptq_from.t) To UBound(ptq_from.t))
     ReDim ptq.val(LBound(ptq_from.val) To UBound(ptq_from.val))
+    
+    ReDim ptq.ql(LBound(ptq_from.ql) To UBound(ptq_from.ql))
+    ReDim ptq.fw(LBound(ptq_from.fw) To UBound(ptq_from.fw))
+    ReDim ptq.rp(LBound(ptq_from.val) To UBound(ptq_from.rp))
+    ReDim ptq.qg(LBound(ptq_from.val) To UBound(ptq_from.qg))
+    
     ptq.len = ptq_from.len
 End Sub
 Public Sub init_ptesp(ptq As PTESP_LIST, ptq_from As PTQ_LIST)
@@ -1016,34 +1101,34 @@ End Function
 Public Function convert_to_dict_ptq(ptq As PTQ_LIST)
     Dim d As New Dictionary
     Dim i As Integer
-    Dim C As New Collection
+    Dim c As New Collection
     
     d("p_atma") = ptq.p
     d("t_C") = ptq.t
     For i = LBound(ptq.feed) To UBound(ptq.feed)
-        C.Add ParseJson(ptq.feed(i))
+        c.Add ParseJson(ptq.feed(i))
     Next i
-    d("feed") = C
+    d("feed") = c
     Set convert_to_dict_ptq = d
 End Function
 Public Function convert_to_dict_ptesp(ptesp As PTESP_LIST)
     Dim d As New Dictionary
     Dim i As Integer
-    Dim C As New Collection
+    Dim c As New Collection
     
     d("p_intake_atma") = ptesp.p_intake
     d("p_dis_atma") = ptesp.p_dis
     d("t_intake_C") = ptesp.t_intake
     d("t_dis_C") = ptesp.t_dis
     For i = LBound(ptesp.feed) To UBound(ptesp.feed)
-        C.Add ParseJson(ptesp.feed(i))
+        c.Add ParseJson(ptesp.feed(i))
     Next i
-    d("feed") = C
+    d("feed") = c
     Set convert_to_dict_ptesp = d
 End Function
 Public Function parse_feed_list(ByVal feed As String) As Variant
     Dim col As Collection
-    Dim C
+    Dim c
     Dim res() As String
     Dim i As Integer
     
@@ -1051,8 +1136,8 @@ Public Function parse_feed_list(ByVal feed As String) As Variant
         Set col = ParseJson(feed)
         ReDim res(1 To col.Count)
         i = 1
-        For Each C In col
-            res(i) = ConvertToJson(C)
+        For Each c In col
+            res(i) = ConvertToJson(c)
             i = i + 1
         Next
     Else
@@ -1066,7 +1151,7 @@ Public Function parse_list(val) As Variant
 ' from number
 ' or from json sting
     Dim col As New Collection
-    Dim C
+    Dim c
     Dim res() As Double
     Dim i As Integer
     
@@ -1078,13 +1163,13 @@ Public Function parse_list(val) As Variant
             Set col = ParseJson(val)
             ReDim res(1 To col.Count)
             i = 1
-            For Each C In col
-                res(i) = C
+            For Each c In col
+                res(i) = c
                 i = i + 1
             Next
         Case vbEmpty
             ReDim res(1 To 1)
-            res(1) = 0
+            res(1) = -1E+20
     End Select
     parse_list = res
 End Function
@@ -1092,190 +1177,32 @@ End Function
 ' набор функций для решения ДУ и уравнений для различных классов и процедур
 ' функция градиента давления для одномерной задачи расчета
 ' распределения давления в трубопроводе
-Public Function calc_grad_1d(l_m As Double, _
-                              y() As Double, _
-                              pipe As CPipe) As Double()
-    Dim out(0 To 0) As Double
-    Dim res As PIPE_FLOW_PARAMS
-    With pipe
-        res = pipe.calc_grad(l_m, y(0), pipe.t_h_mes_C(l_m), calc_dtdl:=False)
-    End With
-    out(0) = res.dp_dl
-    calc_grad_1d = out
-End Function
-' функция градиента давления для двухмерной задачи расчета
-' распределения давления в трубопроводе
-Public Function calc_grad_2d(l_m As Double, _
-                             y() As Double, _
-                             pipe As CPipe) As Double()
-    Dim out(0 To 1) As Double
-    Dim res As PIPE_FLOW_PARAMS
-    With pipe
-        res = pipe.calc_grad(l_m, y(0), y(1))
-    End With
-    out(0) = res.dp_dl
-    out(1) = res.dt_dl
-    calc_grad_2d = out
-End Function
-' функция расчета ошибки в оценке давления для штуцера
-' в зависимости от поправки на калибровочный параметр
-Public Function calc_choke_dp_error_calibr_grav_atm(ByVal calibr As Double, _
-                                                    CoeffA As Variant) As Double
-    Dim PT As PTtype
-    Dim pt0 As PTtype
-    Dim choke As Cchoke
-    Dim p_in_atma As Double
-    Dim p_out_atma As Double
-    
-    ' read coeffA - parameters
-    Set choke = CoeffA(0)
-    p_in_atma = CoeffA(1)
-    p_out_atma = CoeffA(2)
-    
-    With choke
-        .calibr_fr = calibr
-        pt0.p_atma = p_out_atma
-        pt0.t_C = .t_choke_C
-        PT = .calc_choke_p(pt0, calc_p_down:=0)
-        calc_choke_dp_error_calibr_grav_atm = (PT.p_atma - p_in_atma)
-    End With
-    
-End Function
-' функция расчета ошибки в оценке давления для штуцера
-' в зависимости от диаметра
-Public Function calc_choke_dp_error_diam_atm(ByVal diam_m As Double, _
-                                                    CoeffA As Variant) As Double
-    Dim PT As PTtype
-    Dim pt0 As PTtype
-    Dim choke As Cchoke
-    Dim p_in_atma As Double
-    Dim p_out_atma As Double
-    
-    ' read coeffA - parameters
-    Set choke = CoeffA(0)
-    p_in_atma = CoeffA(1)
-    p_out_atma = CoeffA(2)
-    
-    'On Error Resume Next
-    On Error GoTo er1
-    ' low diam can be unstable - trying eliminate it
-    
-    With choke
-        .d_choke_m = diam_m
-        pt0.p_atma = p_out_atma
-        pt0.t_C = .t_choke_C
-        PT = .calc_choke_p(pt0, calc_p_down:=0)
-        If PT.p_atma < 0 Then PT.p_atma = 0
-        calc_choke_dp_error_diam_atm = (PT.p_atma - p_in_atma)
-    End With
-    Exit Function
-er1:
-    Dim str1 As String
-    str1 = "calc_choke_dp_error_diam_atm:  error " & Err.Description & " processed. calc continue"
-    
-    On Error Resume Next
-    Call choke.add_log_msg(str1)
-    
-    On Error GoTo er1
-    Resume Next
-    
-End Function
-' функция расчета ошибки в оценке давления для штуцера
-' в зависимости от газового фактора
-Public Function calc_choke_dp_error_rp_atm(ByVal RP As Double, _
-                                                    CoeffA As Variant) As Double
-    Dim PT As PTtype
-    Dim pt0 As PTtype
-    Dim choke As Cchoke
-    Dim p_in_atma As Double
-    Dim p_out_atma As Double
-    
-    ' read coeffA - parameters
-    Set choke = CoeffA(0)
-    p_in_atma = CoeffA(1)
-    p_out_atma = CoeffA(2)
-    
-    With choke
-        .fluid.rp_m3m3 = RP
-        pt0.p_atma = p_out_atma
-        pt0.t_C = .t_choke_C
-        PT = .calc_choke_p(pt0, calc_p_down:=0)
-        calc_choke_dp_error_rp_atm = (PT.p_atma - p_in_atma)
-    End With
-    
-End Function
-' функция расчета ошибки в оценке давления для штуцера
-' в зависимости от обводненности
-Public Function calc_choke_dp_error_fw_atm(ByVal fw_fr As Double, _
-                                                    CoeffA As Variant) As Double
-    Dim PT As PTtype
-    Dim pt0 As PTtype
-    Dim choke As Cchoke
-    Dim p_in_atma As Double
-    Dim p_out_atma As Double
-    
-    ' read coeffA - parameters
-    Set choke = CoeffA(0)
-    p_in_atma = CoeffA(1)
-    p_out_atma = CoeffA(2)
-    
-    With choke
-        .fluid.fw_fr = fw_fr
-        pt0.p_atma = p_out_atma
-        pt0.t_C = .t_choke_C
-        PT = .calc_choke_p(pt0, calc_p_down:=0)
-        calc_choke_dp_error_fw_atm = (PT.p_atma - p_in_atma)
-    End With
-    
-End Function
-' функция расчета ошибки в оценке давления для штуцера
-' в зависимости от обводненности
-Public Function calc_choke_dp_error_qliq_atm(ByVal qliq As Double, _
-                                                    CoeffA As Variant) As Double
-    Dim PT As PTtype
-    Dim pt0 As PTtype
-    Dim choke As Cchoke
-    Dim p_in_atma As Double
-    Dim p_out_atma As Double
-    
-    ' read coeffA - parameters
-    Set choke = CoeffA(0)
-    p_in_atma = CoeffA(1)
-    p_out_atma = CoeffA(2)
-    
-    With choke
-        .fluid.q_liq_sm3day = qliq
-        pt0.p_atma = p_out_atma
-        pt0.t_C = .t_choke_C
-        PT = .calc_choke_p(pt0, calc_p_down:=0)
-        calc_choke_dp_error_qliq_atm = (PT.p_atma - p_in_atma)
-    End With
-    
-End Function
-' функция расчета ошибки в оценке давления для штуцера
-' в зависимости от обводненности
-Public Function calc_choke_dp_error_qgas_atm(ByVal qgas As Double, _
-                                                    CoeffA As Variant) As Double
-    Dim PT As PTtype
-    Dim pt0 As PTtype
-    Dim choke As Cchoke
-    Dim p_in_atma As Double
-    Dim p_out_atma As Double
-    
-    ' read coeffA - parameters
-    Set choke = CoeffA(0)
-    p_in_atma = CoeffA(1)
-    p_out_atma = CoeffA(2)
-    
-    With choke
-        .fluid.q_gas_free_sm3day = qgas
-        pt0.p_atma = p_out_atma
-        pt0.t_C = .t_choke_C
-        PT = .calc_choke_p(pt0, calc_p_down:=0)
-        calc_choke_dp_error_qgas_atm = (PT.p_atma - p_in_atma)
-    End With
-    
-End Function
+'Public Function calc_grad_1d(l_m As Double, _
+'                              y() As Double, _
+'                              pipe As CPipe) As Double()
+'    Dim out(0 To 0) As Double
+'    Dim res As PIPE_FLOW_PARAMS
+'    With pipe
+'        res = pipe.calc_grad(l_m, y(0), pipe.t_h_mes_C(l_m), calc_dtdl:=False)
+'    End With
+'    out(0) = res.dp_dl
+'    calc_grad_1d = out
+'End Function
+'
+'' функция градиента давления для двухмерной задачи расчета
+'' распределения давления в трубопроводе
+'Public Function calc_grad_2d(l_m As Double, _
+'                             y() As Double, _
+'                             pipe As CPipe) As Double()
+'    Dim out(0 To 1) As Double
+'    Dim res As PIPE_FLOW_PARAMS
+'    With pipe
+'        res = pipe.calc_grad(l_m, y(0), y(1))
+'    End With
+'    out(0) = res.dp_dl
+'    out(1) = res.dt_dl
+'    calc_grad_2d = out
+'End Function
 ' функция расчета ошибки в оценке давления для ЭЦН
 ' в зависимости от поправки на напор насоса
 Public Function calc_ESP_dp_error_calibr_head_atm(ByVal calibr_head As Double, _
@@ -1367,7 +1294,7 @@ Public Function calc_pipe_dp_error_calibr_fric_atm(ByVal calibr_fric As Double, 
 End Function
 ' функция расчета ошибки в оценке давления для трубы
 ' в зависимости от газового фактора
-Public Function calc_pipe_dp_error_rp_atm(ByVal RP As Double, _
+Public Function calc_pipe_dp_error_rp_atm(ByVal rp As Double, _
                                    CoeffA As Variant) As Double
     Dim PT As PTtype
     Dim pipe As CPipe
@@ -1379,7 +1306,7 @@ Public Function calc_pipe_dp_error_rp_atm(ByVal RP As Double, _
     p_out_atma = CoeffA(2)
     
     With pipe
-        .fluid.rp_m3m3 = RP
+        .fluid.rp_m3m3 = rp
         PT = .calc_dPipe(p_in_atma)
         calc_pipe_dp_error_rp_atm = (PT.p_atma - p_out_atma)
     End With
@@ -1446,7 +1373,7 @@ Public Function calc_pipe_dp_error_qgas_atm(ByVal qgas_sm3day As Double, _
     
 End Function
 Function calc_pipe_val(XA() As Double, CoeffA() As Double, RtnType As Long) As Variant
-    Dim a As Double, B As Double, C As Double, d As Double, e As Double, f As Double, Slopea As Variant, X1 As Double, X2 As Double
+    Dim a As Double, B As Double, c As Double, d As Double, e As Double, f As Double, Slopea As Variant, X1 As Double, X2 As Double
     Dim Th As Double, t As Double
 '    A = CoeffA(0)
 '    B = CoeffA(1)
@@ -1465,83 +1392,83 @@ Function calc_pipe_val(XA() As Double, CoeffA() As Double, RtnType As Long) As V
 End Function
 ' примеры функций для подгонки
 Function ExpFunc1(XA() As Double, CoeffA() As Double, RtnType As Long) As Variant
-    Dim a As Double, B As Double, C As Double, Slopea(0 To 2) As Double, x As Double
+    Dim a As Double, B As Double, c As Double, Slopea(0 To 2) As Double, X As Double
     a = CoeffA(0)
     B = CoeffA(1)
-    C = CoeffA(2)
-    x = XA(0)
+    c = CoeffA(2)
+    X = XA(0)
     Select Case RtnType
     Case 1
-        ExpFunc1 = a + C * Exp(-B * x)
+        ExpFunc1 = a + c * Exp(-B * X)
     Case 2
         Slopea(0) = 1
-        Slopea(1) = -C * x * Exp(-B * x)
-        Slopea(2) = Exp(-B * x)
+        Slopea(1) = -c * X * Exp(-B * X)
+        Slopea(2) = Exp(-B * X)
         ExpFunc1 = Slopea
     End Select
 End Function
 Function ExpFunc2(XA() As Double, CoeffA() As Double, RtnType As Long) As Variant
-    Dim a As Double, B As Double, C As Double, Slopea(0 To 2) As Double, X1 As Double, X2 As Double
+    Dim a As Double, B As Double, c As Double, Slopea(0 To 2) As Double, X1 As Double, X2 As Double
     a = CoeffA(0)
     B = CoeffA(1)
-    C = CoeffA(2)
+    c = CoeffA(2)
     X1 = XA(0)
     X2 = XA(1)
     Select Case RtnType
     Case 1
-        ExpFunc2 = a * X2 + C * Exp(-B * X1)
+        ExpFunc2 = a * X2 + c * Exp(-B * X1)
     Case 2
         Slopea(0) = X2
-        Slopea(1) = -C * X1 * Exp(-B * X1)
+        Slopea(1) = -c * X1 * Exp(-B * X1)
         Slopea(2) = Exp(-B * X1)
         ExpFunc2 = Slopea
     End Select
 End Function
 Function ExpFuncFD(XA() As Double, CoeffA() As Double, RtnType As Long) As Variant
-    Dim a As Double, B As Double, C As Double, Slopea As Variant, X1 As Double, X2 As Double
+    Dim a As Double, B As Double, c As Double, Slopea As Variant, X1 As Double, X2 As Double
     a = CoeffA(0)
     B = CoeffA(1)
-    C = CoeffA(2)
+    c = CoeffA(2)
     X1 = XA(0)
     X2 = XA(1)
     Select Case RtnType
     Case 1
-        ExpFuncFD = a * X2 + C * Exp(-B * X1)
+        ExpFuncFD = a * X2 + c * Exp(-B * X1)
     Case 2
         ExpFuncFD = GradientA("ExpFuncFD", CoeffA, XA, 3, 3)
     End Select
 End Function
 Private Function GradientA(Func As Variant, Pvaluea0() As Double, _
-                   XvalueA0() As Double, NumP As Long, NumX As Long, Optional DP As Double = 0.000001) As Variant
-    Dim Eform As String, Eform2 As String, i As Long, j As Long, K As Long, ResA() As Double
+                   XvalueA0() As Double, NumP As Long, NumX As Long, Optional dp As Double = 0.000001) As Variant
+    Dim Eform As String, Eform2 As String, i As Long, j As Long, k As Long, ResA() As Double
     Dim res1 As Double, res2 As Double
     ' Evaluate the gradient vector (vector of partial first differentials, wrt each parameter)
     ' for the function specified in Func, using finite difference method.
     ReDim ResA(0 To NumP - 1)
     For i = 0 To NumP - 1
-        Pvaluea0(i) = Pvaluea0(i) + DP
+        Pvaluea0(i) = Pvaluea0(i) + dp
         res1 = Application.Run(Func, XvalueA0, Pvaluea0, 1)
-        Pvaluea0(i) = Pvaluea0(i) - DP * 2
+        Pvaluea0(i) = Pvaluea0(i) - dp * 2
         res2 = Application.Run(Func, XvalueA0, Pvaluea0, 1)
-        ResA(i) = (res1 - res2) / (DP * 2)
-        Pvaluea0(i) = Pvaluea0(i) + DP
+        ResA(i) = (res1 - res2) / (dp * 2)
+        Pvaluea0(i) = Pvaluea0(i) + dp
     Next i
     GradientA = ResA
 End Function
 Function ExpFunc2H(XA() As Double, CoeffA() As Double, RtnType As Long) As Variant
-    Dim a As Double, B As Double, C As Double, Slopea(0 To 2) As Double, X1 As Double, X2 As Double
+    Dim a As Double, B As Double, c As Double, Slopea(0 To 2) As Double, X1 As Double, X2 As Double
     Dim HessA(0 To 2, 0 To 2) As Double
     a = CoeffA(0)
     B = CoeffA(1)
-    C = CoeffA(2)
+    c = CoeffA(2)
     X1 = XA(0)
     X2 = XA(1)
     Select Case RtnType
     Case 1
-        ExpFunc2H = a * X2 + C * Exp(-B * X1)
+        ExpFunc2H = a * X2 + c * Exp(-B * X1)
     Case 2
         Slopea(0) = X2
-        Slopea(1) = -C * X1 * Exp(-B * X1)
+        Slopea(1) = -c * X1 * Exp(-B * X1)
         Slopea(2) = Exp(-B * X1)
         ExpFunc2H = Slopea
     Case 3
@@ -1549,7 +1476,7 @@ Function ExpFunc2H(XA() As Double, CoeffA() As Double, RtnType As Long) As Varia
         HessA(0, 1) = 0
         HessA(0, 2) = 0
         HessA(1, 0) = 0
-        HessA(1, 1) = C * X1 ^ 2 * Exp(-B * X1)
+        HessA(1, 1) = c * X1 ^ 2 * Exp(-B * X1)
         HessA(1, 2) = -X1 * Exp(-B * X1)
         HessA(2, 0) = 0
         HessA(2, 1) = -X1 * Exp(-B * X1)
@@ -1558,45 +1485,45 @@ Function ExpFunc2H(XA() As Double, CoeffA() As Double, RtnType As Long) As Varia
     End Select
 End Function
 Function PolyFunc(XA() As Double, CoeffA() As Double, RtnType As Long) As Variant
-    Dim a As Double, B As Double, C As Double, Slopea(0 To 2) As Double, x As Double
+    Dim a As Double, B As Double, c As Double, Slopea(0 To 2) As Double, X As Double
     a = CoeffA(0)
     B = CoeffA(1)
     ' C = CoeffA(2)
-    x = XA(0)
+    X = XA(0)
     ' X2 = XA(1)
     Select Case RtnType
     Case 1
-        PolyFunc = a * x ^ 4 + B * x ^ 3 + a * x ^ 2 + B * x
+        PolyFunc = a * X ^ 4 + B * X ^ 3 + a * X ^ 2 + B * X
     Case 2
-        Slopea(0) = x ^ 4
-        Slopea(1) = x ^ 3
+        Slopea(0) = X ^ 4
+        Slopea(1) = X ^ 3
         ' Slopea(2) = Exp(-B * X1)
         PolyFunc = Slopea
     End Select
 End Function
 Function CreepFD1(XA() As Double, CoeffA() As Double, RtnType As Long) As Variant
-    Dim a As Double, B As Double, C As Double, d As Double, e As Double, f As Double, Slopea As Variant, X1 As Double, X2 As Double
+    Dim a As Double, B As Double, c As Double, d As Double, e As Double, f As Double, Slopea As Variant, X1 As Double, X2 As Double
     Dim Th As Double, t As Double
     a = CoeffA(0)
     B = CoeffA(1)
-    C = CoeffA(2)
+    c = CoeffA(2)
     d = CoeffA(3)
     
     Th = XA(0)
     t = XA(1)
     Select Case RtnType
     Case 1
-        CreepFD1 = a * Log(B * t) - C * t - d * Th
+        CreepFD1 = a * Log(B * t) - c * t - d * Th
     Case 2
         CreepFD1 = GradientA("CreepFD1", CoeffA, XA, 4, 2)
     End Select
 End Function
 Function CreepFD2(XA() As Double, CoeffA() As Double, RtnType As Long) As Variant
-    Dim a As Double, B As Double, C As Double, d As Double, e As Double, f As Double, Slopea As Variant, X1 As Double, X2 As Double
+    Dim a As Double, B As Double, c As Double, d As Double, e As Double, f As Double, Slopea As Variant, X1 As Double, X2 As Double
     Dim Th As Double, t As Double
     a = CoeffA(0)
     B = CoeffA(1)
-    C = CoeffA(2)
+    c = CoeffA(2)
     d = CoeffA(3)
     e = CoeffA(4)
     f = CoeffA(5)
@@ -1604,39 +1531,39 @@ Function CreepFD2(XA() As Double, CoeffA() As Double, RtnType As Long) As Varian
     t = XA(1)
     Select Case RtnType
     Case 1
-        CreepFD2 = (a + B * Exp(C * Th)) * t ^ d / (t ^ e + f * Th)
+        CreepFD2 = (a + B * Exp(c * Th)) * t ^ d / (t ^ e + f * Th)
     Case 2
         CreepFD2 = GradientA("CreepFD2", CoeffA, XA, 6, 2)
     End Select
 End Function
 ' функция для поиска решения по расчету давления в клапане
 Public Function calc_dq_gas_pu_valve(Pu As Double, CoeffA)
-   Dim q_gas As Double, d_mm As Double, pd As Double, gg As Double, t As Double
+   Dim Q_gas As Double, d_mm As Double, pd As Double, gg As Double, t As Double
    Dim calibr As Double
-   q_gas = CoeffA(0)
+   Q_gas = CoeffA(0)
    d_mm = CoeffA(1)
    pd = CoeffA(2)
    gg = CoeffA(3)
    t = CoeffA(4)
    calibr = CoeffA(5)
    
-   calc_dq_gas_pu_valve = q_gas - GLV_q_gas_sm3day(d_mm, Pu, pd, gg, t, calibr)(0)(0)
+   calc_dq_gas_pu_valve = Q_gas - GLV_q_gas_sm3day(d_mm, Pu, pd, gg, t, calibr)(0)(0)
 End Function
 Public Function calc_dq_gas_pd_valve(pd As Double, CoeffA)
-   Dim q_gas As Double, d_mm As Double, Pu As Double, gg As Double, t As Double
+   Dim Q_gas As Double, d_mm As Double, Pu As Double, gg As Double, t As Double
    Dim calibr As Double
-   q_gas = CoeffA(0)
+   Q_gas = CoeffA(0)
    d_mm = CoeffA(1)
    Pu = CoeffA(2)
    gg = CoeffA(3)
    t = CoeffA(4)
    calibr = CoeffA(5)
    
-   calc_dq_gas_pd_valve = q_gas - GLV_q_gas_sm3day(d_mm, Pu, pd, gg, t, calibr)(0)(0)
+   calc_dq_gas_pd_valve = Q_gas - GLV_q_gas_sm3day(d_mm, Pu, pd, gg, t, calibr)(0)(0)
 End Function
 ' функция расчета ошибки в расходе газа при произвольном давлении внутри клапана
 Public Function calc_dq_gas_pv_vkr_valve(PV As Double, CoeffA)
-   Dim q_gas As Double, d_mm As Double, Pu As Double, pd As Double, gg As Double, t As Double
+   Dim Q_gas As Double, d_mm As Double, Pu As Double, pd As Double, gg As Double, t As Double
    Dim d_vkr As Double
    Dim calibr As Double
    
@@ -1698,6 +1625,18 @@ On Error GoTo err1:
                 .found_solution = True
                 .msg = "solve_equation_bisection: done by  " + CStr(i) + " iterations, tolerance " + CStr(.y_tolerance)
                 Exit Function
+            ElseIf (Abs(y_temp) < .y_tolerance * 10) And (i > 10) Then
+                ' если почти угадали решение
+                ' можно попробовать его найти за счет линейной аппроксимации
+                ' (позволяет иногда меньше считать и избегать ошибок из за грубых расчетов)
+                solve_equation_bisection = True
+                .x_solution = X1 + (X2 - X1) * Y1 / Y2
+                .y_solution = 0
+                .iterations = i
+                .found_solution = True
+                .msg = "solve_equation_bisection: almost done by  " + CStr(i) + " iterations, tolerance " + CStr(.y_tolerance)
+                Exit Function
+                
             Else
                 If y_temp * Y1 > 0 Then
                     X1 = x_temp
@@ -1743,18 +1682,18 @@ Public Function solve_ode(ByVal func_name As String, _
 ' Eps
 ' Step
 ' MaxIts
-    Dim M As Long, N As Long, State As ODESolverState, _
+    Dim M As Long, n As Long, State As ODESolverState, _
     YA() As Double, i As Long, _
     Rtn As Boolean, Rep As ODESolverReport
     Dim R() As Double
   
-    N = UBound(y0) + 1
+    n = UBound(y0) + 1
     M = UBound(XA) + 1
     'Set up any required output arrays
-    ReDim YA(0 To M - 1, 0 To N - 1)
+    ReDim YA(0 To M - 1, 0 To n - 1)
     
     'Call the appropriate AlgLib routine to initialise the State object
-    Call ODESolverRKCK(y0(), N, XA, M, eps, step, State)
+    Call ODESolverRKCK(y0(), n, XA, M, eps, step, State)
     
     ' Loop through the AlgLib solver routine and the external ODE
     ' evaluation routine until the solver routine returns "False",
@@ -1765,7 +1704,7 @@ Public Function solve_ode(ByVal func_name As String, _
     i = 0
     Do While Rtn = True And i < MaxIts
         Rtn = ODESolverIteration(State)
-        R = Application.Run(func_name, State.x, State.y, CoeffA(0))
+        R = Application.Run(func_name, State.X, State.y, CoeffA(0))
         State.DY(0) = R(0)
         i = i + 1
     Loop

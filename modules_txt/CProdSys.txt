@@ -1,7 +1,7 @@
 '=======================================================================================
-'Unifloc 7.38 aspo                                    khabibullinra@gmail.com
+'Unifloc 7.50 year 2024                                  khabibullinra@gmail.com
 'Petroleum engineering calculations modules (macroses)
-'2000 - 2022
+'2000 - 2023
 '
 '=======================================================================================
 ' class for calc general well production system
